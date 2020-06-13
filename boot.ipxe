@@ -1,0 +1,302 @@
+#!ipxe
+#
+#Location for ipxe, http://boot.ipxe.org/
+#Location for wimboot, https://git.ipxe.org/releases/wimboot/
+#
+dhcp ||
+chain secrets || goto error
+
+# Distribution release version
+set debian-release stable
+set fedora-release 32
+set opensuse-release 15.2
+set ubuntu-release 20.04
+set windows-release 10
+
+# Mirrors
+set debian-mirror debian.mirror.iweb.ca
+set debian-live debian.mirror.iweb.ca
+set fedora-mirror fedora.mirror.iweb.ca
+set opensuse-mirror mirror.csclub.uwaterloo.ca
+set ubuntu-mirror ubuntu.mirror.iweb.ca
+
+# Some menu defaults
+set esc:hex 1b
+set bold ${esc:string}[1m
+set orange ${esc:string}[33;0m
+set yellow ${esc:string}[33;1m
+set cyan ${esc:string}[36;1m
+set resetfg ${esc:string}[39m
+set resetbg ${esc:string}[49m
+set resetbold ${esc:string}[22m
+set reset ${esc:string}[0m
+set cls ${esc:string}[2J
+set menu-timeout 30000
+set submenu-timeout ${menu-timeout}
+isset ${menu-default} || set menu-default exit
+
+# Figure out if client is 64-bit capable
+iseq ${buildarch} i386 && set arch x86 || set arch x64
+iseq ${buildarch} i386 && set archb 32 || set archb 64
+iseq ${buildarch} i386 && set arch_fedora i386 || set arch_fedora x86_64
+iseq ${buildarch} i386 && set arch_debian i386 || set arch_debian amd64
+iseq ${platform} efi && set archp efi || set archp bios
+
+#
+# Main menu
+:start
+show dns
+menu iPXE ${version} - ${manufacturer} ${product} - ${archb}bit ${archp}
+item --key w win            ${bold}W${resetbold}indows ${windows-release} install
+item --key a winauto        Windows ${windows-release} ${bold}a${resetbold}uto install
+item --key e winre          Windows ${windows-release} ${bold}e${resetbold}mergency recovery
+item 
+item --key 1 arch           Arch linux
+item --key 2 fedoraai       Fedora ${fedora-release} auto install
+item --key 3 ubuntuai       Ubuntu ${ubuntu-release} auto install
+item 
+item --key g gparted        ${bold}G${resetbold}raphical Partition Manager
+item --key z clone          Clone${bold}z${resetbold}illa
+item --key b bitdefender    ${bold}B${resetbold}itdefender AntiVirus
+item 
+item --gap --               ------------------------------ Advanced ---------------------------------
+item --key r refresh_menu   ${bold}R${resetbold}efresh menu
+item config                 Configure settings
+item shell                  Enter iPXE shell
+item --key s efishell       EFI ${bold}s${resetbold}hell
+item --key t reboot         Reboo${bold}t${resetbold}
+item --key x --default exit E${bold}x${resetbold}it (boot local disk)
+item --key o menu_other
+choose --timeout ${menu-timeout} selected || goto cancel
+set menu-timeout 0
+goto ${selected}
+
+########## UTILITY ITEMS ####################
+:config
+config
+goto start
+
+:shell
+echo Type exit to get the back to the menu
+shell
+set menu-timeout 0
+goto start
+
+:reboot
+reboot
+
+:refresh_menu
+chain -ar boot.ipxe
+
+:failed
+echo Booting failed, dropping to shell
+goto shell
+
+:cancel
+echo You cancelled the menu, dropping you to a shell
+goto shell
+
+:back
+set submenu-timeout 0
+clear submenu-default
+goto start
+
+:exit
+exit
+
+#
+:win
+imgfree
+kernel wimboot
+initrd --name winpeshl.ini ${swboot-url}/pxe/unattend/win/install_winpeshl.ini  winpeshl.ini
+goto winboot
+
+:winauto
+imgfree
+kernel wimboot
+initrd --name winpeshl.ini ${swboot-url}/pxe/unattend/win/unattend_winpeshl.ini winpeshl.ini
+goto winboot
+
+:winre
+imgfree
+kernel wimboot
+initrd --name winpeshl.ini ${swboot-url}/pxe/unattend/win/repair_winpeshl.ini   winpeshl.ini
+goto winboot
+
+:winboot
+initrd --name bcd          ${swboot-url}/win/iso/expanded/10/boot/bcd           bcd
+initrd --name boot.sdi     ${swboot-url}/win/iso/expanded/10/boot/boot.sdi      boot.sdi
+initrd --name boot.wim     ${swboot-url}/win/iso/expanded/10/sources/boot.wim   boot.wim
+boot
+
+:arch
+imgfree
+set url http://mirror.csclub.uwaterloo.ca/archlinux/iso/latest
+initrd  ${url}/arch/boot/${arch_fedora}/archiso.img || goto failed
+boot    ${url}/arch/boot/${arch_fedora}/vmlinuz initrd=archiso.img \
+        archiso_http_srv=${url}/ archisobasedir=arch \
+        script=${swboot-url}/pxe/unattend/lnx/arch/docker_install.sh \
+        ip=dhcp nomodeset console=tty0 console=tty1 || goto failed
+goto start
+
+:fedoraai
+imgfree
+set url http://${fedora-mirror}/linux/releases/${fedora-release}/Everything/${arch_fedora}/os
+initrd  ${url}/images/pxeboot/initrd.img || goto failed
+boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} \
+        inst.repo=${url} inst.stage2=${url} inst.ks=${swboot-url}/pxe/unattend/lnx/fedora/ks.cfg \
+        ks_url=${swboot-url}/pxe/unattend/lnx/fedora || goto failed
+goto start
+
+:ubuntuai
+imgfree
+set url http://${ubuntu-mirror}/ubuntu/dists/${ubuntu-release}/main/installer-${arch_debian}/current/legacy-images/netboot/ubuntu-installer/${arch_debian}
+initrd  ${url}/initrd.gz || goto failed
+boot    ${url}/linux initrd=initrd.gz \
+        mirror/http/hostname=${ubuntu-mirror} priority=critical ipv6.disable=1 auto=true url=${swboot-url}/pxe/unattend/lnx/ubuntu/preseed.cfg || goto failed
+goto start
+
+:efishell
+# https://github.com/tianocore/edk2/tree/master/ShellBinPkg
+imgfree
+chain   ${swboot-url}/pxe/Shell.efi || imgfree
+goto start
+
+:gparted
+imgfree
+initrd  ${swboot-url}/pxe/misc/gparted/initrd.img || goto failed
+boot    ${swboot-url}/pxe/misc/gparted/vmlinuz initrd=initrd.img \
+        fetch=${swboot-url}/pxe/misc/gparted/filesystem.squashfs boot=live union=overlay username=user ip=${dns} vga=788 \
+        gl_batch config components noeject noprompt noswap locales=en_US.UTF-8 keyboard-layouts=en || goto failed
+goto start
+
+:clone
+imgfree
+initrd  ${swboot-url}/pxe/misc/clonezilla/initrd.img || goto failed
+boot    ${swboot-url}/pxe/misc/clonezilla/vmlinuz initrd=initrd.img \
+        fetch=${swboot-url}/pxe/misc/clonezilla/filesystem.squashfs \
+        union=overlay config components noswap username=user edd=on nomodeset nodmraid locales=en_US.UTF-8 keyboard-layouts=en \
+        boot=live ocs_live_run="ocs-live-general" ocs_live_extra_param="" ocs_live_batch=no \
+        net.ifnames=0 nosplash noprompt || goto failed
+goto start
+
+:bitdefender
+imgfree
+set avd pxe/misc/av/bitdefender
+initrd  ${swboot-url}/${avd}/boot/initfs.x86_64-efi || goto failed
+boot    ${swboot-url}/${avd}/boot/kernel.x86_64-efi initrd=initfs.x86_64-efi \
+        ip=${ip} root=/dev/nfs real_root=/dev/nfs nfsroot=${nfs-url}/${avd}/,rw \
+        loop=/rescue/livecd.squashfs looptype=squashfs \
+        livecd.nfsif=${mac} net.ifnames=0 initrd udev cdroot lang=en || goto failed
+goto start
+
+#
+# Other menu
+:menu_other
+menu Other OS installation
+item
+item --key 1 alpine         1. Alpine linux
+item
+item --key 2 alpine         2. Arch linux
+item
+item --key 3 debian         3. Debian install_______________ 4. live
+item --key 4 debianlive
+item --key 5 fedora         5. Fedora install_______________ 6. live
+item --key 6 fedoralive
+item --key 7 rawhide        7. Fedora Rawhide install_______ 8. live
+item --key 8 rawhide
+item --key 9 opensuse       9. OpenSuse install_____________ 0. live
+item --key 0 opensuselive
+item --key a tumbleweed     A. OpenSuse Tumbleweed install__ B. live
+item --key b tumbleweedlive
+item --key c ubuntu         C. Ubuntu install_______________ D. live
+item --key d ubuntulive
+item
+item --key 0x08 back        <= Back to top menu...
+choose selected && goto ${selected} || goto start
+
+:alpine
+imgfree
+set url http://mirror.csclub.uwaterloo.ca/alpine/edge
+initrd  ${url}/releases/x86_64/netboot/initramfs-lts || goto failed
+boot    ${url}/releases/x86_64/netboot/vmlinuz-lts initrd=initramfs-lts \
+        modloop=${url}/releases/x86_64/netboot/modloop-lts alpine_repo=${url}/main \
+        modules=loop,squashfs quiet nomodeset console=tty0 || goto failed
+goto start
+
+:debian
+imgfree
+set url http://${debian-mirror}/debian/dists/${debian-release}/main/installer-${arch_debian}/current/images/netboot/debian-installer/${arch_debian}
+initrd  ${url}/initrd.gz || goto failed
+boot    ${url}/linux initrd=initrd.gz \
+        mirror/http/directory=/debian mirror/http/hostname=${debian-mirror} mirror/country=manual || goto failed
+goto start
+
+:debianlive
+imgfree
+initrd  ${swboot-url}/pxe/misc/debian/initrd.img || goto failed
+boot    ${swboot-url}/pxe/misc/debian/vmlinuz initrd=initrd.img \
+        fetch=${swboot-url}/pxe/misc/debian/filesystem.squashfs \
+        boot=live || goto failed
+goto start
+
+:fedora
+imgfree
+set url http://${fedora-mirror}/linux/releases/${fedora-release}/Everything/${arch_fedora}/os
+initrd  ${url}/images/pxeboot/initrd.img || goto failed
+boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} devfs=nomount || goto failed
+goto start
+
+:fedoralive
+imgfree
+initrd  ${swboot-url}/pxe/misc/fedora/initrd.img || goto failed
+boot    ${swboot-url}/pxe/misc/fedora/vmlinuz initrd=initrd.img \
+        root=live:${swboot-url}/pxe/misc/fedora/squashfs.img \
+        ro ip=dhcp rd.live.image rd.lvm=0 rd.luks=0 rd.md=0 rd.dm=0 || goto failed
+goto start
+
+:rawhide
+imgfree
+set url http://${fedora-mirror}/linux/development/rawhide/Everything/${arch_fedora}/os
+initrd  ${url}/images/pxeboot/initrd.img || goto failed
+boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} devfs=nomount || goto failed
+goto start
+
+:opensuse
+imgfree
+set url http://${opensuse-mirror}/opensuse/distribution/leap/${opensuse-release}/repo/oss
+initrd  ${url}/boot/${arch_fedora}/loader/initrd || goto failed
+boot    ${url}/boot/${arch_fedora}/loader/linux initrd=initrd install=${url} || goto failed
+goto start
+
+:opensuselive
+imgfree
+initrd  ${swboot-url}/pxe/misc/opensuse/initrd.img || goto failed
+boot    ${swboot-url}/pxe/misc/opensuse/vmlinuz initrd=initrd.img \
+        root=live:${swboot-url}/pxe/misc/opensuse/squashfs.img \
+        ro ip=dhcp rd.live.image splash=silent quiet || goto failed
+goto start
+
+:tumbleweed
+imgfree
+set url http://provo-mirror.opensuse.org/tumbleweed/repo/oss
+initrd  ${url}/boot/${arch_fedora}/loader/initrd || goto failed
+boot    ${url}/boot/${arch_fedora}/loader/linux initrd=initrd install=${url} || goto failed
+goto start
+
+:ubuntu
+imgfree
+set url http://${ubuntu-mirror}/ubuntu/dists/${ubuntu-release}/main/installer-${arch_debian}/current/legacy-images/netboot/ubuntu-installer/${arch_debian}
+initrd  ${url}/initrd.gz || goto failed
+boot    ${url}/linux initrd=initrd.gz \
+        mirror/http/directory=/ubuntu mirror/http/hostname=${ubuntu-mirror} mirror/country=manual || goto failed
+goto start
+
+:ubuntulive
+imgfree
+initrd  ${swboot-url}/pxe/misc/ubuntu/initrd || goto failed
+boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuz initrd=initrd \
+        url=${swboot-url}/pxe/misc/ubuntu/ubuntu.iso \
+        ethdevice-timeout=30 ip=dhcp root=/dev/ram0 ramdisk_size=5000000 || goto failed
+goto start
+

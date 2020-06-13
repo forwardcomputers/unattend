@@ -1,0 +1,253 @@
+#!/bin/bash
+set -E              # any trap on ERR is inherited by shell functions
+set -e              # exit if error occurs
+set -u              # treat unset variables and parameters as an error
+set -o pipefail     # fail if pipe failed
+#set -x
+#
+get_file () {
+  # shellcheck disable=SC2125
+  DOWNLOAD_PATH="${2}"?raw=true
+  FILE_NAME=$1
+  if [ "${FILE_NAME:0:1}" = "/" ]; then
+    SAVE_PATH=$FILE_NAME
+  else
+    SAVE_PATH=$3$FILE_NAME
+  fi
+  TMP_NAME=tmp/${1}
+  echo "Getting ${1}"
+  curl -sLo "$TMP_NAME" "$DOWNLOAD_PATH"
+  rv=$?
+  if [ $rv != 0 ]; then
+    rm "$TMP_NAME"
+    echo "Download failed with error $rv"
+    exit
+  fi
+  copy_file "$TMP_NAME" "$SAVE_PATH"
+}
+#
+copy_file () {
+  if diff "${1}" "${2}" &>/dev/null ; then
+    echo "  File up to date."
+    rm "$1"
+    return 0
+  else
+    echo "  Updating ${2}"
+    mv "${1}" "${2}"
+    chmod 644 "${2}"
+    chown 1001:20 "${2}"
+  fi
+}
+#
+get_ipxe () {
+  get_file ipxe.efi http://boot.ipxe.org/ipxe.efi ./
+  get_file ipxe.lkrn http://boot.ipxe.org/ipxe.lkrn ./
+  get_file ipxe.pxe http://boot.ipxe.org/ipxe.pxe ./
+}
+#
+get_wimboot () {
+  echo "Getting wimboot"
+  curl -Ls http://git.ipxe.org/releases/wimboot/wimboot-latest.tar.bz2 | 7z e -si -tbzip2 -so | 7z e -si -ttar -o'tmp/' 'wimboot-2.6.0-signed/wimboot' >/dev/null
+  copy_file tmp/wimboot ./wimboot
+}
+#
+get_clonezilla () {
+  echo "Getting Clonezilla"
+  _old_checksum=$(awk '/amd64.zip/ {print $1; exit}' misc/clonezilla/checksum.txt 2>&1 /dev/null)
+  curl -sLo tmp/checksum.txt http://free.nchc.org.tw/clonezilla-live/stable/CHECKSUMS.TXT
+  _new_checksum=$(awk '/amd64.zip/ {print $1; exit}' tmp/checksum.txt)
+  if [ "$_new_checksum" = "$_old_checksum" ]; then
+    echo "  Files up to date."
+  else
+    echo "Updating files"
+    _filename=$(awk '/amd64.zip/ {print $2; exit}' tmp/checksum.txt)
+    echo "  Downloading package"
+    curl -sLo tmp/clonezilla.zip http://free.nchc.org.tw/clonezilla-live/stable/"$_filename"
+    echo "  Extracting files"
+    7z e 'tmp/clonezilla.zip' -o'tmp/' 'live/filesystem.squashfs' 'live/initrd.img' 'live/vmlinuz' > /dev/null
+    chmod 644 tmp/*
+    chown 1001:20 tmp/*
+    mv -f tmp/{checksum.txt,filesystem.squashfs,initrd.img,vmlinuz} misc/clonezilla/
+  fi
+  rm -f tmp/*
+}
+#
+get_gparted () {
+  echo "Getting GParted"
+  _old_checksum=$(awk '/amd64.zip/ {print $1; exit}' misc/gparted/checksum.txt 2>&1 /dev/null)
+  curl -sLo tmp/checksum.txt https://gparted.org/gparted-live/stable/CHECKSUMS.TXT
+  _new_checksum=$(awk '/amd64.zip/ {print $1; exit}' tmp/checksum.txt)
+  if [ "$_new_checksum" = "$_old_checksum" ]; then
+    echo "  Files up to date."
+  else
+    echo "Updating files"
+    _filename=$(awk '/amd64.zip/ {print $2; exit}' tmp/checksum.txt)
+    echo "  Downloading package"
+    curl -sLo tmp/gparted.zip https://downloads.sourceforge.net/gparted/"$_filename"
+    echo "  Extracting files"
+    7z e 'tmp/gparted.zip' -o'tmp/' 'live/filesystem.squashfs' 'live/initrd.img' 'live/vmlinuz' > /dev/null
+    chmod 644 tmp/*
+    chown 1001:20 tmp/*
+    mv -f tmp/{checksum.txt,filesystem.squashfs,initrd.img,vmlinuz} misc/gparted/
+  fi
+  rm -f tmp/*
+}
+#
+get_debian () {
+  echo "Getting Debian Live CD"
+  _old_checksum=$(awk '/amd64-gnome.iso/ {print $1; exit}' misc/debian/checksum.txt 2>&1 /dev/null)
+  curl -sLo tmp/checksum.txt http://debian.mirror.iweb.ca/debian-cd/current-live/amd64/iso-hybrid/MD5SUMS
+  _new_checksum=$(awk '/amd64-gnome.iso/ {print $1; exit}' tmp/checksum.txt)
+  if [ "$_new_checksum" = "$_old_checksum" ]; then
+    echo "  Files up to date."
+  else
+    echo "Updating files"
+    _filename=$(awk '/amd64-gnome.iso/ {print $2; exit}' tmp/checksum.txt)
+    echo "  Downloading package"
+    curl -sLo tmp/debian.iso http://debian.mirror.iweb.ca/debian-cd/current-live/amd64/iso-hybrid/"$_filename"
+    echo "  Extracting files"
+    7z e 'tmp/debian.iso' -o'tmp/' 'live/filesystem.squashfs' 'live/initrd*' 'live/vmlinuz*' > /dev/null
+    chmod 644 tmp/*
+    chown 1001:20 tmp/*
+    mv tmp/initrd* debian/initrd.img
+    mv tmp/vmlinuz* debian/vmlinuz
+    mv -f tmp/{checksum.txt,filesystem.squashfs} misc/debian/
+  fi
+  rm -f tmp/*
+}
+#
+get_fedora () {
+  echo "Getting Fedora Live CD"
+  _old_checksum=$(awk '/^SHA/ {print $4; exit}' misc/fedora/checksum.txt 2>&1 /dev/null)
+  _fversion=$(curl -Ls 'https://en.wikipedia.org/wiki/Fedora_(operating_system)' | grep -o -P '(?<=Latest release</a></th><td>).*?(?=<)')
+  #_fversion=$(curl -Ls https://getfedora.org/en | grep -o -P '(?<=https://fedoraproject.org/wiki/Common_F).*?(?=_bugs)')
+  _release=$(curl -Ls http://fedora.mirror.iweb.com/imagelist-fedora |  grep -o -P '(?<=Fedora-Workstation-Live-x86_64-'"$_fversion"'-).*?(?=.iso)')
+  curl -sLo tmp/checksum.txt http://fedora.mirror.iweb.ca/linux/releases/"$_fversion"/Workstation/x86_64/iso/Fedora-Workstation-"$_fversion"-"$_release"-x86_64-CHECKSUM
+  _new_checksum=$(awk '/^SHA/ {print $4; exit}' tmp/checksum.txt)
+  if [ "$_new_checksum" = "$_old_checksum" ]; then
+    echo "  Files up to date."
+  else
+    echo "Updating files"
+    sed -i "/set fedora-release / s/[^ ]* *$/$_fversion/" boot.ipxe
+    _filename=$(awk -F"[)(]" '/^SHA/ {print $2; exit}' tmp/checksum.txt)
+    echo "  Downloading package"
+    curl -sLo tmp/fedora.iso http://fedora.mirror.iweb.com/linux/releases/"$_fversion"/Workstation/x86_64/iso/"$_filename"
+    echo "  Extracting files"
+    7z e 'tmp/fedora.iso' -o'tmp/' 'LiveOS/squashfs.img' 'images/pxeboot/initrd.img' 'images/pxeboot/vmlinuz' > /dev/null
+    chmod 644 tmp/*
+    chown 1001:20 tmp/*
+    mv -f tmp/{checksum.txt,squashfs.img,initrd.img,vmlinuz} misc/fedora/
+  fi
+  rm -f tmp/*
+}
+#
+get_rawhide () {
+  echo "Getting Fedora Rawhide Live CD"
+  _old_checksum=$(awk '/^SHA/ {print $4; exit}' misc/rawhide/checksum.txt 2>&1 /dev/null)
+  _release=$(curl -sL http://fedora.mirror.iweb.com/linux/development/rawhide/COMPOSE_ID | awk -F'-' '{print $3}')
+  curl -sLo tmp/checksum.txt http://fedora.mirror.iweb.com/linux/development/rawhide/Workstation/x86_64/iso/Fedora-Workstation-Rawhide-x86_64-"$_release"-CHECKSUM
+  _new_checksum=$(awk '/^SHA/ {print $4; exit}' tmp/checksum.txt)
+  if [ "$_new_checksum" = "$_old_checksum" ]; then
+    echo "  Files up to date."
+  else
+    echo "Updating files"
+    echo "  Downloading package"
+    curl -sLo tmp/rawhide.iso http://fedora.mirror.iweb.com/linux/development/rawhide/Workstation/x86_64/iso/Fedora-Workstation-Live-x86_64-Rawhide-"$_release".iso
+    echo "  Extracting files"
+    7z e 'tmp/rawhide.iso' -o'tmp/' 'LiveOS/squashfs.img' 'images/pxeboot/initrd.img' 'images/pxeboot/vmlinuz' > /dev/null
+    chmod 644 tmp/*
+    chown 1001:20 tmp/*
+    mv -f tmp/{checksum.txt,squashfs.img,initrd.img,vmlinuz} misc/rawhide/
+  fi
+  rm -f tmp/*
+}
+#
+get_opensuse () {
+  echo "Getting openSUSE Live CD"
+  _old_checksum=$(awk '{print $1}' misc/opensuse/checksum.txt 2>&1 /dev/null)
+  _version=$(curl -Ls https://software.opensuse.org/distributions | grep -o -P '(?<=openSUSE:Leap:).*?(?=")' | head -1 || true)
+  curl -sLo tmp/checksum.txt https://mirror.csclub.uwaterloo.ca/opensuse/distribution/leap/"$_version"/live/openSUSE-Leap-"$_version"-KDE-Live-x86_64-Media.iso.sha256
+  _new_checksum=$(awk '{print $1}' tmp/checksum.txt)
+  if [ "$_new_checksum" = "$_old_checksum" ]; then
+    echo "  Files up to date."
+  else
+    echo "Updating files"
+    sed -i "/set opensuse-release / s/[^ ]* *$/$_version/" boot.ipxe
+    echo "  Downloading package"
+    curl -sLo tmp/opensuse.iso https://mirror.csclub.uwaterloo.ca/opensuse/distribution/leap/"$_version"/live/openSUSE-Leap-"$_version"-KDE-Live-x86_64-Media.iso
+    echo "  Extracting files"
+    7z e 'tmp/opensuse.iso' -o'tmp/' 'LiveOS/squashfs.img' 'boot/x86_64/loader/initrd' 'boot/x86_64/loader/linux' > /dev/null
+    chmod 644 tmp/*
+    chown 1001:20 tmp/*
+    mv -f tmp/{checksum.txt,squashfs.img,initrd,linux} misc/opensuse/
+  fi
+  rm -f tmp/*
+}
+#
+get_tumbleweed () {
+  echo "Getting openSUSE Tumbleweed Live CD"
+  _old_checksum=$(awk '{print $1}' misc/tumbleweed/checksum.txt 2>&1 /dev/null)
+  curl -sLo tmp/checksum.txt http://mirror.umd.edu/opensuse/tumbleweed/iso/openSUSE-Tumbleweed-KDE-Live-x86_64-Current.iso.sha256
+  _new_checksum=$(awk '{print $1}' tmp/checksum.txt)
+  if [ "$_new_checksum" = "$_old_checksum" ]; then
+    echo "  Files up to date."
+  else
+    echo "Updating files"
+    echo "  Downloading package"
+    curl -sLo tmp/tumbleweed.iso http://mirror.umd.edu/opensuse/tumbleweed/iso/openSUSE-Tumbleweed-KDE-Live-x86_64-Current.iso
+    echo "  Extracting files"
+    7z e 'tmp/tumbleweed.iso' -o'tmp/' 'LiveOS/squashfs.img' 'boot/x86_64/loader/initrd' 'boot/x86_64/loader/linux' > /dev/null
+    chmod 644 tmp/*
+    chown 1001:20 tmp/*
+    mv -f tmp/{checksum.txt,squashfs.img,initrd,linux} misc/tumbleweed/
+  fi
+  rm -f tmp/*
+}
+#
+get_ubuntu () {
+  echo "Getting Ubuntu Live CD"
+  _old_checksum=$(awk '{print $1; exit}' misc/ubuntu/checksum.txt 2>&1 /dev/null)
+  _name=$(curl -sl https://raw.githubusercontent.com/tianon/docker-brew-ubuntu-core/master/rolling)
+  curl -sLo tmp/checksum.txt http://ubuntu-cd.mirror.iweb.ca/"$_name"/MD5SUMS
+  _new_checksum=$(awk '{print $1; exit}' tmp/checksum.txt)
+  if [ "$_new_checksum" = "$_old_checksum" ]; then
+    echo "  Files up to date."
+  else
+    echo "Updating files"
+    _version=$(awk -F'-' '{print $2; exit}' tmp/checksum.txt)
+    sed -i "/set ubuntu-release / s/[^ ]* *$/$_version/" boot.ipxe
+    echo "  Downloading package"
+    curl -sLo tmp/ubuntu.iso http://ubuntu-cd.mirror.iweb.ca/"$_name"/ubuntu-"$_version"-desktop-amd64.iso
+    echo "  Extracting files"
+    7z e 'tmp/ubuntu.iso' -o'tmp/' 'casper/initrd' 'casper/vmlinuz' > /dev/null
+    chmod 644 tmp/*
+    chown 1001:20 tmp/*
+    mv -f tmp/{checksum.txt,ubuntu.iso,initrd,vmlinuz} misc/ubuntu/
+  fi
+  rm -f tmp/*
+}
+#
+main () {
+  if [ -e /.dockerenv ] && ! grep update /var/spool/cron/crontabs/root ; then
+    echo '0 5,10,16 * * * /opt/filer/os/pxe/update' | crontab -
+    crond -f -d 6
+  fi
+  if [ -d /opt/filer ]; then pushd /opt/filer/os/pxe >/dev/null; fi
+ 
+  echo
+  get_ipxe
+  get_wimboot
+  get_clonezilla
+  get_gparted
+  get_debian
+  get_fedora
+  get_rawhide
+  get_opensuse
+  get_tumbleweed
+  get_ubuntu
+
+  popd > /dev/null 2>&1
+}
+#
+main "$@"
+
