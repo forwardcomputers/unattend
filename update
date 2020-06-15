@@ -176,10 +176,10 @@ get_opensuse () {
     echo "  Downloading package"
     curl -sLo tmp/opensuse.iso https://mirror.csclub.uwaterloo.ca/opensuse/distribution/leap/"$_version"/live/openSUSE-Leap-"$_version"-KDE-Live-x86_64-Media.iso
     echo "  Extracting files"
-    7z e 'tmp/opensuse.iso' -o'tmp/' 'LiveOS/squashfs.img' 'boot/x86_64/loader/initrd' 'boot/x86_64/loader/linux' > /dev/null
+    # 7z e 'tmp/opensuse.iso' -o'tmp/' 'LiveOS/squashfs.img' 'boot/x86_64/loader/initrd' 'boot/x86_64/loader/linux' > /dev/null
     chmod 644 tmp/*
     chown 1001:20 tmp/*
-    mv -f tmp/{checksum.txt,squashfs.img,initrd,linux} misc/opensuse/
+    mv -f tmp/opensuse.iso misc/opensuse/
   fi
   rm -f tmp/*
 }
@@ -196,10 +196,10 @@ get_tumbleweed () {
     echo "  Downloading package"
     curl -sLo tmp/tumbleweed.iso http://mirror.umd.edu/opensuse/tumbleweed/iso/openSUSE-Tumbleweed-KDE-Live-x86_64-Current.iso
     echo "  Extracting files"
-    7z e 'tmp/tumbleweed.iso' -o'tmp/' 'LiveOS/squashfs.img' 'boot/x86_64/loader/initrd' 'boot/x86_64/loader/linux' > /dev/null
+    # 7z e 'tmp/tumbleweed.iso' -o'tmp/' 'LiveOS/squashfs.img' 'boot/x86_64/loader/initrd' 'boot/x86_64/loader/linux' > /dev/null
     chmod 644 tmp/*
     chown 1001:20 tmp/*
-    mv -f tmp/{checksum.txt,squashfs.img,initrd,linux} misc/tumbleweed/
+    mv -f tmp/tumbleweed.iso misc/tumbleweed/
   fi
   rm -f tmp/*
 }
@@ -228,13 +228,14 @@ get_ubuntu () {
 }
 #
 main () {
-  if [ -e /.dockerenv ] && ! grep update /var/spool/cron/crontabs/root ; then
+  if [ -e /.dockerenv ] && ! grep -sq update /etc/crontabs/root ; then
     echo '0 5,10,16 * * * /opt/filer/os/pxe/update' | crontab -
     crond -f -d 6
   fi
   if [ -d /opt/filer ]; then pushd /opt/filer/os/pxe >/dev/null; fi
  
   echo
+  date
   get_ipxe
   get_wimboot
   get_clonezilla

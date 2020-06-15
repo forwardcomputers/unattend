@@ -199,12 +199,12 @@ item --key 1 alpine         1. Alpine linux
 item
 item --key 2 alpine         2. Arch linux
 item
-item --key 3 debian         3. Debian install_______________ 4. live
-item --key 4 debianlive
-item --key 5 fedora         5. Fedora install_______________ 6. live
-item --key 6 fedoralive
+item --key 3 debian            Debian ${debian-release}
+item --key 4 debianlive     3. Install_______________ 4. live
+item --key 5 fedora            Fedora ${fedora-release}
+item --key 6 fedoralive     5. Install_______________ 6. live
 item --key 7 rawhide        7. Fedora Rawhide install_______ 8. live
-item --key 8 rawhide
+item --key 8 rawhidelive
 item --key 9 opensuse       9. OpenSuse install_____________ 0. live
 item --key 0 opensuselive
 item --key a tumbleweed     A. OpenSuse Tumbleweed install__ B. live
@@ -262,6 +262,14 @@ initrd  ${url}/images/pxeboot/initrd.img || goto failed
 boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} devfs=nomount || goto failed
 goto start
 
+:rawhidelive
+imgfree
+initrd  ${swboot-url}/pxe/misc/rawhide/initrd.img || goto failed
+boot    ${swboot-url}/pxe/misc/rawhide/vmlinuz initrd=initrd.img \
+        root=live:${swboot-url}/pxe/misc/rawhide/squashfs.img \
+        ro ip=dhcp rd.live.image rd.lvm=0 rd.luks=0 rd.md=0 rd.dm=0 || goto failed
+goto start
+
 :opensuse
 imgfree
 set url http://${opensuse-mirror}/opensuse/distribution/leap/${opensuse-release}/repo/oss
@@ -271,10 +279,11 @@ goto start
 
 :opensuselive
 imgfree
-initrd  ${swboot-url}/pxe/misc/opensuse/initrd.img || goto failed
-boot    ${swboot-url}/pxe/misc/opensuse/vmlinuz initrd=initrd.img \
-        root=live:${swboot-url}/pxe/misc/opensuse/squashfs.img \
-        ro ip=dhcp rd.live.image splash=silent quiet || goto failed
+sanboot iscsi:${iscsi-iqn} || goto failed
+#initrd  ${swboot-url}/pxe/misc/opensuse/initrd || goto failed
+#boot    ${swboot-url}/pxe/misc/opensuse/linux initrd=initrd \
+#        root=/dev/nfs nfsroot=${nfs-url}/pxe/misc/opensuse/ \
+#        ro ip=dhcp rd.live.image rd.live.ram=1 || goto failed
 goto start
 
 :tumbleweed
