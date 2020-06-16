@@ -1,0 +1,4 @@
+#!ipxe
+
+dhcp
+chain http://filer/os/pxe/boot.ipxe || prompt Press any key to continue
