@@ -40,9 +40,45 @@ copy_file () {
 }
 #
 get_ipxe () {
-  get_file ipxe.efi http://boot.ipxe.org/ipxe.efi ./
-  get_file ipxe.lkrn http://boot.ipxe.org/ipxe.lkrn ./
-  get_file ipxe.pxe http://boot.ipxe.org/ipxe.pxe ./
+  pushd /opt/filer/os/pxe >/dev/null
+  pushd /opt/filer/os/pxe/src/ipxe/src >/dev/null
+  _local=$(git rev-parse @)
+  _remote=$(git rev-parse @{u})
+
+  if [ "${_local}" != "${_remote}" ]; then
+    make clean >/dev/null
+    git fetch --all -q
+    git reset --hard origin/master -q
+
+    sed -i '
+      /CONSOLE_FRAMEBUFFER/ s/^\S*/#define/
+    ' /opt/filer/os/pxe/src/ipxe/src/config/console.h
+
+    sed -i '
+      /DOWNLOAD_PROTO_FTP/ s/^\S*/#define/
+      /DOWNLOAD_PROTO_NFS/ s/^\S*/#define/
+      /DOWNLOAD_PROTO_FILE/ s/^\S*/#define/
+      /SANBOOT_PROTO_FCP/ s/^\S*/#undef/
+      /IWMGMT_CMD/ s/^\S*/#define/
+      /IBMGMT_CMD/ s/^\S*/#define/
+      /FCMGMT_CMD/ s/^\S*/#define/
+      /NSLOOKUP_CMD/ s/^\S*/#define/
+      /VLAN_CMD/ s/^\S*/#define/
+      /REBOOT_CMD/ s/^\S*/#define/
+      /POWEROFF_CMD/ s/^\S*/#define/
+      /PING_CMD/ s/^\S*/#define/
+      /CONSOLE_CMD/ s/^\S*/#define/
+      /VNIC_IPOIB/ s/^\S*/#undef/
+      /TIVOLI_VMM_WORKAROUND/ s/^\S*/#undef/
+    ' /opt/filer/os/pxe/src/ipxe/src/config/general.h
+
+    make -j 16 -C /opt/filer/os/pxe/src/ipxe/src bin-x86_64-efi/ipxe.efi EMBED=/opt/filer/os/pxe/src/filer.ipxe
+    popd
+    unlink filer.efi
+    ln -s src/ipxe/src/bin-x86_64-efi/ipxe.efi filer.efi
+    ln -s src/ipxe/src/bin-x86_64-efi/ipxe.efi ipxe.efi
+    popd
+  fi
 }
 #
 get_wimboot () {
@@ -179,7 +215,7 @@ get_opensuse () {
     # 7z e 'tmp/opensuse.iso' -o'tmp/' 'LiveOS/squashfs.img' 'boot/x86_64/loader/initrd' 'boot/x86_64/loader/linux' > /dev/null
     chmod 644 tmp/*
     chown 1001:20 tmp/*
-    mv -f tmp/opensuse.iso misc/opensuse/
+    mv -f tmp/{checksum.txt,opensuse.iso} misc/opensuse/
   fi
   rm -f tmp/*
 }
@@ -199,7 +235,7 @@ get_tumbleweed () {
     # 7z e 'tmp/tumbleweed.iso' -o'tmp/' 'LiveOS/squashfs.img' 'boot/x86_64/loader/initrd' 'boot/x86_64/loader/linux' > /dev/null
     chmod 644 tmp/*
     chown 1001:20 tmp/*
-    mv -f tmp/tumbleweed.iso misc/tumbleweed/
+    mv -f tmp/{checksum.txt,tumbleweed.iso} misc/tumbleweed/
   fi
   rm -f tmp/*
 }
