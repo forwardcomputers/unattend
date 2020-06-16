@@ -1,6 +1,6 @@
 #!/bin/bash
-set -E              # any trap on ERR is inherited by shell functions
-set -e              # exit if error occurs
+#set -E              # any trap on ERR is inherited by shell functions
+#set -e              # exit if error occurs
 set -u              # treat unset variables and parameters as an error
 set -o pipefail     # fail if pipe failed
 #set -x
@@ -40,13 +40,12 @@ copy_file () {
 }
 #
 get_ipxe () {
-  pushd /opt/filer/os/pxe >/dev/null
   pushd /opt/filer/os/pxe/src/ipxe/src >/dev/null
   _local=$(git rev-parse @)
   _remote=$(git rev-parse @{u})
 
   if [ "${_local}" != "${_remote}" ]; then
-    make clean >/dev/null
+    make -C /opt/filer/os/pxe/src/ipxe/src clean >/dev/null
     git fetch --all -q
     git reset --hard origin/master -q
 
@@ -73,10 +72,9 @@ get_ipxe () {
     ' /opt/filer/os/pxe/src/ipxe/src/config/general.h
 
     make -j 16 -C /opt/filer/os/pxe/src/ipxe/src bin-x86_64-efi/ipxe.efi EMBED=/opt/filer/os/pxe/src/filer.ipxe
-    popd
-    unlink filer.efi
-    ln -s src/ipxe/src/bin-x86_64-efi/ipxe.efi filer.efi
-    ln -s src/ipxe/src/bin-x86_64-efi/ipxe.efi ipxe.efi
+    if [ $? -eq 0 ]; then
+      cp src/ipxe/src/bin-x86_64-efi/ipxe.efi /opt/filer/os/pxe/ipxe.efi
+    fi
     popd
   fi
 }

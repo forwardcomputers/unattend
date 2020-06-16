@@ -1,4 +1,11 @@
 #!ipxe
-
+#
+# Give user a chance to enter the shell
+prompt --key 0x02 --timeout 5000 Press Ctrl-B for the iPXE shell... || goto no_shell
+shell
+exit
+#
+:no_shell
+# Boot the system
 dhcp
 chain http://filer/os/pxe/boot.ipxe || prompt Press any key to continue
