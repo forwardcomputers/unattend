@@ -3,7 +3,6 @@
 #Location for ipxe, http://boot.ipxe.org/
 #Location for wimboot, https://git.ipxe.org/releases/wimboot/
 #
-dhcp ||
 chain secrets || goto error
 
 # Distribution release version
@@ -33,6 +32,7 @@ set reset ${esc:string}[0m
 set cls ${esc:string}[2J
 set menu-timeout 30000
 set submenu-timeout ${menu-timeout}
+console --x 800 --y 600
 isset ${menu-default} || set menu-default exit
 
 # Figure out if client is 64-bit capable
@@ -45,12 +45,11 @@ iseq ${platform} efi && set archp efi || set archp bios
 #
 # Main menu
 :start
-show dns
 menu iPXE ${version} - ${manufacturer} ${product} - ${archb}bit ${archp}
 item --key w win            ${bold}W${resetbold}indows ${windows-release} install
 item --key a winauto        Windows ${windows-release} ${bold}a${resetbold}uto install
 item --key e winre          Windows ${windows-release} ${bold}e${resetbold}mergency recovery
-item 
+item
 item --key 1 arch           Arch linux
 item --key 2 fedoraai       Fedora ${fedora-release} auto install
 item --key 3 ubuntuai       Ubuntu ${ubuntu-release} auto install
@@ -195,24 +194,26 @@ goto start
 :menu_other
 menu Other OS installation
 item
-item --key 1 alpine         1. Alpine linux
+item --key 1 debian         ∞∞∞∞∞∞∞∞∞∞∞ Debian ${debian-release}
+item --key 2 debianlive     ∞∞∞∞ 1. Install ∞∞∞∞∞∞∞∞∞∞∞ 2. live
 item
-item --key 2 alpine         2. Arch linux
+item --key 3 fedora         ∞∞∞∞∞∞∞∞∞∞∞ Fedora ${fedora-release}
+item --key 4 fedoralive     ∞∞∞∞ 3. Install ∞∞∞∞∞∞∞∞∞∞∞ 4. live
 item
-item --key 3 debian            Debian ${debian-release}
-item --key 4 debianlive     3. Install_______________ 4. live
-item --key 5 fedora            Fedora ${fedora-release}
-item --key 6 fedoralive     5. Install_______________ 6. live
-item --key 7 rawhide        7. Fedora Rawhide install_______ 8. live
-item --key 8 rawhidelive
-item --key 9 opensuse       9. OpenSuse install_____________ 0. live
-item --key 0 opensuselive
-item --key a tumbleweed     A. OpenSuse Tumbleweed install__ B. live
-item --key b tumbleweedlive
-item --key c ubuntu         C. Ubuntu install_______________ D. live
-item --key d ubuntulive
+item --key 5 rawhide        ∞∞∞∞∞∞∞∞∞∞∞ Fedora Rawhide
+item --key 6 rawhidelive    ∞∞∞∞ 5. Install ∞∞∞∞∞∞∞∞∞∞∞ 6. live
 item
-item --key 0x08 back        <= Back to top menu...
+item --key 7 ubuntu         ∞∞∞∞∞∞∞∞∞∞∞ Ubuntu ${ubuntu-release}
+item --key 8 ubuntulive     ∞∞∞∞ 7. Install ∞∞∞∞∞∞∞∞∞∞∞ 8. live
+item
+item --key 9 tumbleweed     ∞∞∞∞∞∞∞∞∞∞∞ OpenSuse Install
+item --key 0 opensuse       ∞∞∞∞ 9. Tumbleweed ∞∞∞∞∞∞∞∞∞∞ 0. Leap ${opensuse-release}
+item
+item --key A alpine         A. Alpine linux
+item
+item --key B alpine         B. Arch linux
+item
+item --key 0x08 back        <== Back to top menu...
 choose selected && goto ${selected} || goto start
 
 :alpine
