@@ -296,6 +296,14 @@ goto start
 
 :ubuntu
 imgfree
+initrd  ${swboot-url}/pxe/misc/ubuntu/initrdserver || goto failed
+boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuzserver initrd=initrdserver \
+        url=${swboot-url}/pxe/misc/ubuntu/ubuntuserver.iso \
+        ethdevice-timeout=30 ip=dhcp root=/dev/ram0 ramdisk_size=5000000 || goto failed
+goto start
+
+:ubuntulegacy
+imgfree
 set url http://${ubuntu-mirror}/ubuntu/dists/${ubuntu-release}/main/installer-${arch_debian}/current/legacy-images/netboot/ubuntu-installer/${arch_debian}
 initrd  ${url}/initrd.gz || goto failed
 boot    ${url}/linux initrd=initrd.gz \
@@ -304,9 +312,9 @@ goto start
 
 :ubuntulive
 imgfree
-initrd  ${swboot-url}/pxe/misc/ubuntu/initrd || goto failed
-boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuz initrd=initrd \
-        url=${swboot-url}/pxe/misc/ubuntu/ubuntu.iso \
+initrd  ${swboot-url}/pxe/misc/ubuntu/initrdlive || goto failed
+boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuzlive initrd=initrdlive \
+        url=${swboot-url}/pxe/misc/ubuntu/ubuntulive.iso \
         ethdevice-timeout=30 ip=dhcp root=/dev/ram0 ramdisk_size=5000000 || goto failed
 goto start
 
