@@ -56,7 +56,7 @@ item --key 3 ubuntuai       Ubuntu ${ubuntu-release} auto install
 item 
 item --key g gparted        ${bold}G${resetbold}raphical Partition Manager
 item --key z clone          Clone${bold}z${resetbold}illa
-item --key b bitdefender    ${bold}B${resetbold}itdefender AntiVirus
+item --key k krd            ${bold}K${resetbold}aspersky Rescue Disk
 item 
 item --gap --               ------------------------------ Advanced ---------------------------------
 item --key r refresh_menu   ${bold}R${resetbold}efresh menu
@@ -136,7 +136,6 @@ boot    ${url}/arch/boot/${arch_fedora}/vmlinuz initrd=archiso.img \
         archiso_http_srv=${url}/ archisobasedir=arch \
         script=${swboot-url}/pxe/unattend/lnx/arch/docker_install.sh \
         ip=dhcp nomodeset console=tty0 console=tty1 || goto failed
-goto start
 
 :fedoraai
 imgfree
@@ -145,21 +144,20 @@ initrd  ${url}/images/pxeboot/initrd.img || goto failed
 boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} \
         inst.repo=${url} inst.stage2=${url} inst.ks=${swboot-url}/pxe/unattend/lnx/fedora/ks.cfg \
         ks_url=${swboot-url}/pxe/unattend/lnx/fedora || goto failed
-goto start
 
 :ubuntuai
 imgfree
 set url http://${ubuntu-mirror}/ubuntu/dists/${ubuntu-release}/main/installer-${arch_debian}/current/legacy-images/netboot/ubuntu-installer/${arch_debian}
 initrd  ${url}/initrd.gz || goto failed
 boot    ${url}/linux initrd=initrd.gz \
-        mirror/http/hostname=${ubuntu-mirror} priority=critical ipv6.disable=1 auto=true url=${swboot-url}/pxe/unattend/lnx/ubuntu/preseed.cfg || goto failed
-goto start
+        mirror/http/hostname=${ubuntu-mirror} \
+        url=${swboot-url}/pxe/unattend/lnx/ubuntu/preseed.cfg \
+        priority=critical ipv6.disable=1 auto=true || goto failed
 
 :efishell
 # https://github.com/tianocore/edk2/tree/master/ShellBinPkg
 imgfree
 chain   ${swboot-url}/pxe/Shell.efi || imgfree
-goto start
 
 :gparted
 imgfree
@@ -167,7 +165,6 @@ initrd  ${swboot-url}/pxe/misc/gparted/initrd.img || goto failed
 boot    ${swboot-url}/pxe/misc/gparted/vmlinuz initrd=initrd.img \
         fetch=${swboot-url}/pxe/misc/gparted/filesystem.squashfs boot=live union=overlay username=user ip=${dns} vga=788 \
         gl_batch config components noeject noprompt noswap locales=en_US.UTF-8 keyboard-layouts=en || goto failed
-goto start
 
 :clone
 imgfree
@@ -177,17 +174,12 @@ boot    ${swboot-url}/pxe/misc/clonezilla/vmlinuz initrd=initrd.img \
         union=overlay config components noswap username=user edd=on nomodeset nodmraid locales=en_US.UTF-8 keyboard-layouts=en \
         boot=live ocs_live_run="ocs-live-general" ocs_live_extra_param="" ocs_live_batch=no \
         net.ifnames=0 nosplash noprompt || goto failed
-goto start
 
-:bitdefender
+:krd
 imgfree
-set avd pxe/misc/av/bitdefender
-initrd  ${swboot-url}/${avd}/boot/initfs.x86_64-efi || goto failed
-boot    ${swboot-url}/${avd}/boot/kernel.x86_64-efi initrd=initfs.x86_64-efi \
-        ip=${ip} root=/dev/nfs real_root=/dev/nfs nfsroot=${nfs-url}/${avd}/,rw \
-        loop=/rescue/livecd.squashfs looptype=squashfs \
-        livecd.nfsif=${mac} net.ifnames=0 initrd udev cdroot lang=en || goto failed
-goto start
+initrd  ${swboot-url}/pxe/misc/krd/boot/grub/initrd.xz || goto failed
+boot    ${swboot-url}/pxe/misc/krd/boot/grub/k-x86_64 initrd=initrd.xz \
+        nfsboot=${nfs-url}/pxe/misc/krd lang=en dostartx || goto failed
 
 #
 # Other menu
@@ -223,7 +215,6 @@ initrd  ${url}/releases/x86_64/netboot/initramfs-lts || goto failed
 boot    ${url}/releases/x86_64/netboot/vmlinuz-lts initrd=initramfs-lts \
         modloop=${url}/releases/x86_64/netboot/modloop-lts alpine_repo=${url}/main \
         modules=loop,squashfs quiet nomodeset console=tty0 || goto failed
-goto start
 
 :debian
 imgfree
@@ -231,7 +222,6 @@ set url http://${debian-mirror}/debian/dists/${debian-release}/main/installer-${
 initrd  ${url}/initrd.gz || goto failed
 boot    ${url}/linux initrd=initrd.gz \
         mirror/http/directory=/debian mirror/http/hostname=${debian-mirror} mirror/country=manual || goto failed
-goto start
 
 :debianlive
 imgfree
@@ -239,14 +229,12 @@ initrd  ${swboot-url}/pxe/misc/debian/initrd.img || goto failed
 boot    ${swboot-url}/pxe/misc/debian/vmlinuz initrd=initrd.img \
         fetch=${swboot-url}/pxe/misc/debian/filesystem.squashfs \
         boot=live || goto failed
-goto start
 
 :fedora
 imgfree
 set url http://${fedora-mirror}/linux/releases/${fedora-release}/Everything/${arch_fedora}/os
 initrd  ${url}/images/pxeboot/initrd.img || goto failed
 boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} devfs=nomount || goto failed
-goto start
 
 :fedoralive
 imgfree
@@ -254,14 +242,12 @@ initrd  ${swboot-url}/pxe/misc/fedora/initrd.img || goto failed
 boot    ${swboot-url}/pxe/misc/fedora/vmlinuz initrd=initrd.img \
         root=live:${swboot-url}/pxe/misc/fedora/squashfs.img \
         ro ip=dhcp rd.live.image rd.lvm=0 rd.luks=0 rd.md=0 rd.dm=0 || goto failed
-goto start
 
 :rawhide
 imgfree
 set url http://${fedora-mirror}/linux/development/rawhide/Everything/${arch_fedora}/os
 initrd  ${url}/images/pxeboot/initrd.img || goto failed
 boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} devfs=nomount || goto failed
-goto start
 
 :rawhidelive
 imgfree
@@ -269,14 +255,12 @@ initrd  ${swboot-url}/pxe/misc/rawhide/initrd.img || goto failed
 boot    ${swboot-url}/pxe/misc/rawhide/vmlinuz initrd=initrd.img \
         root=live:${swboot-url}/pxe/misc/rawhide/squashfs.img \
         ro ip=dhcp rd.live.image rd.lvm=0 rd.luks=0 rd.md=0 rd.dm=0 || goto failed
-goto start
 
 :opensuse
 imgfree
 set url http://${opensuse-mirror}/opensuse/distribution/leap/${opensuse-release}/repo/oss
 initrd  ${url}/boot/${arch_fedora}/loader/initrd || goto failed
 boot    ${url}/boot/${arch_fedora}/loader/linux initrd=initrd install=${url} || goto failed
-goto start
 
 :opensuselive
 imgfree
@@ -285,14 +269,12 @@ sanboot iscsi:${iscsi-iqn} || goto failed
 #boot    ${swboot-url}/pxe/misc/opensuse/linux initrd=initrd \
 #        root=/dev/nfs nfsroot=${nfs-url}/pxe/misc/opensuse/ \
 #        ro ip=dhcp rd.live.image rd.live.ram=1 || goto failed
-goto start
 
 :tumbleweed
 imgfree
 set url http://provo-mirror.opensuse.org/tumbleweed/repo/oss
 initrd  ${url}/boot/${arch_fedora}/loader/initrd || goto failed
 boot    ${url}/boot/${arch_fedora}/loader/linux initrd=initrd install=${url} || goto failed
-goto start
 
 :ubuntuserver
 imgfree
@@ -300,7 +282,6 @@ initrd  ${swboot-url}/pxe/misc/ubuntu/initrdserver || goto failed
 boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuzserver initrd=initrdserver \
         url=${swboot-url}/pxe/misc/ubuntu/ubuntuserver.iso \
         ethdevice-timeout=30 ip=dhcp root=/dev/ram0 ramdisk_size=5000000 || goto failed
-goto start
 
 :ubuntulegacy
 imgfree
@@ -308,7 +289,6 @@ set url http://${ubuntu-mirror}/ubuntu/dists/${ubuntu-release}/main/installer-${
 initrd  ${url}/initrd.gz || goto failed
 boot    ${url}/linux initrd=initrd.gz \
         mirror/http/directory=/ubuntu mirror/http/hostname=${ubuntu-mirror} mirror/country=manual || goto failed
-goto start
 
 :ubuntuworkstation
 imgfree
@@ -316,6 +296,3 @@ initrd  ${swboot-url}/pxe/misc/ubuntu/initrdworkstation || goto failed
 boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuzworkstation initrd=initrdworkstation \
         url=${swboot-url}/pxe/misc/ubuntu/ubuntuworkstation.iso \
         ethdevice-timeout=30 ip=dhcp root=/dev/ram0 ramdisk_size=5000000 || goto failed
-goto start
-
-
