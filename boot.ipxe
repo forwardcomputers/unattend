@@ -203,8 +203,8 @@ item
 item --key 5 rawhide        ∞∞∞∞∞∞∞∞∞∞∞ Fedora Rawhide
 item --key 6 rawhidelive    ∞∞∞∞ 5. Install ∞∞∞∞∞∞∞∞∞∞∞ 6. live
 item
-item --key 7 ubuntu         ∞∞∞∞∞∞∞∞∞∞∞ Ubuntu ${ubuntu-release}
-item --key 8 ubuntulive     ∞∞∞∞ 7. Install ∞∞∞∞∞∞∞∞∞∞∞ 8. live
+item --key 7 ubuntuserver         ∞∞∞∞∞∞∞∞∞∞∞ Ubuntu ${ubuntu-release}
+item --key 8 ubuntuworkstation     ∞∞∞∞ 7. Install ∞∞∞∞∞∞∞∞∞∞∞ 8. live
 item
 item --key 9 tumbleweed     ∞∞∞∞∞∞∞∞∞∞∞ OpenSuse Install
 item --key 0 opensuse       ∞∞∞∞ 9. Tumbleweed ∞∞∞∞∞∞∞∞∞∞ 0. Leap ${opensuse-release}
@@ -294,7 +294,7 @@ initrd  ${url}/boot/${arch_fedora}/loader/initrd || goto failed
 boot    ${url}/boot/${arch_fedora}/loader/linux initrd=initrd install=${url} || goto failed
 goto start
 
-:ubuntu
+:ubuntuserver
 imgfree
 initrd  ${swboot-url}/pxe/misc/ubuntu/initrdserver || goto failed
 boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuzserver initrd=initrdserver \
@@ -310,11 +310,11 @@ boot    ${url}/linux initrd=initrd.gz \
         mirror/http/directory=/ubuntu mirror/http/hostname=${ubuntu-mirror} mirror/country=manual || goto failed
 goto start
 
-:ubuntulive
+:ubuntuworkstation
 imgfree
-initrd  ${swboot-url}/pxe/misc/ubuntu/initrdlive || goto failed
-boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuzlive initrd=initrdlive \
-        url=${swboot-url}/pxe/misc/ubuntu/ubuntulive.iso \
+initrd  ${swboot-url}/pxe/misc/ubuntu/initrdworkstation || goto failed
+boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuzworkstation initrd=initrdworkstation \
+        url=${swboot-url}/pxe/misc/ubuntu/ubuntuworkstation.iso \
         ethdevice-timeout=30 ip=dhcp root=/dev/ram0 ramdisk_size=5000000 || goto failed
 goto start
 

@@ -247,12 +247,12 @@ get_tumbleweed () {
   # rm -f "${_tmp}"/*
 }
 #
-get_ubuntu () {
+get_ubuntulive () {
   _echo "Getting Ubuntu Live CD"
-  _old_checksum=$(awk '{print $1; exit}' "${_misc}"/ubuntu/checksum.txt 2>&1 /dev/null)
+  _old_checksum=$(awk '/desktop/ {print $1; exit}' "${_misc}"/ubuntu/checksum.txt 2>&1 /dev/null)
   _name=$(curl -sl https://raw.githubusercontent.com/tianon/docker-brew-ubuntu-core/master/rolling)
   curl -sLo "${_tmp}"/checksum.txt http://ubuntu-cd.mirror.iweb.ca/"$_name"/MD5SUMS
-  _new_checksum=$(awk '{print $1; exit}' "${_tmp}"/checksum.txt)
+  _new_checksum=$(awk '/desktop/ {print $1; exit}' "${_tmp}"/checksum.txt)
   if [ "$_new_checksum" = "$_old_checksum" ]; then
     _echo "  Files up to date."
   else
@@ -260,12 +260,39 @@ get_ubuntu () {
     _version=$(awk -F'-' '{print $2; exit}' "${_tmp}"/checksum.txt)
     sed -i "/set ubuntu-release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
     _echo "  Downloading package"
-    curl -sLo "${_tmp}"/ubuntu.iso http://ubuntu-cd.mirror.iweb.ca/"$_name"/ubuntu-"$_version"-desktop-amd64.iso
+    curl -sLo "${_tmp}"/ubuntuworkstation.iso http://ubuntu-cd.mirror.iweb.ca/"$_name"/ubuntu-"$_version"-desktop-amd64.iso
     _echo "  Extracting files"
-    7z e "${_tmp}/ubuntu.iso" -o"${_tmp}/" 'casper/initrd' 'casper/vmlinuz' > /dev/null
+    7z e "${_tmp}/ubuntuworkstation.iso" -o"${_tmp}/" 'casper/initrd' 'casper/vmlinuz' > /dev/null
     chmod 644 "${_tmp}"/*
     chown 1001:20 "${_tmp}"/*
-    mv -f "${_tmp}"/{checksum.txt,ubuntu.iso,initrd,vmlinuz} "${_misc}"/ubuntu/
+    mv -f "${_tmp}"/initrd "${_misc}"/ubuntu/initrdworkstation
+    mv -f "${_tmp}"/vmlinuz "${_misc}"/ubuntu/vmlinuzworkstation
+    mv -f "${_tmp}"/{checksum.txt,ubuntuworkstation.iso} "${_misc}"/ubuntu/
+  fi
+  rm -f "${_tmp}"/*
+}
+#
+get_ubuntuserver () {
+  _echo "Getting Ubuntu Live CD"
+  _old_checksum=$(awk '/live-server/ {print $1; exit}' "${_misc}"/ubuntu/checksum.txt 2>&1 /dev/null)
+  _name=$(curl -sl https://raw.githubusercontent.com/tianon/docker-brew-ubuntu-core/master/rolling)
+  curl -sLo "${_tmp}"/checksum.txt http://ubuntu-cd.mirror.iweb.ca/"$_name"/MD5SUMS
+  _new_checksum=$(awk '/live-server/ {print $1; exit}' "${_tmp}"/checksum.txt)
+  if [ "$_new_checksum" = "$_old_checksum" ]; then
+    _echo "  Files up to date."
+  else
+    _echo "Updating files"
+    _version=$(awk -F'-' '{print $2; exit}' "${_tmp}"/checksum.txt)
+    sed -i "/set ubuntu-release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
+    _echo "  Downloading package"
+    curl -sLo "${_tmp}"/ubuntuserver.iso http://ubuntu-cd.mirror.iweb.ca/"$_name"/ubuntu-"$_version"-live-server-amd64.iso
+    _echo "  Extracting files"
+    7z e "${_tmp}/ubuntuserver.iso" -o"${_tmp}/" 'casper/initrd' 'casper/vmlinuz' > /dev/null
+    chmod 644 "${_tmp}"/*
+    chown 1001:20 "${_tmp}"/*
+    mv -f "${_tmp}"/initrd "${_misc}"/ubuntu/initrdserver
+    mv -f "${_tmp}"/vmlinuz "${_misc}"/ubuntu/vmlinuzserver
+    mv -f "${_tmp}"/{checksum.txt,ubuntuserver.iso} "${_misc}"/ubuntu/
   fi
   rm -f "${_tmp}"/*
 }
