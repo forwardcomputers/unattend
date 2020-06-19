@@ -7,8 +7,17 @@ dhclient
 curl -s -o/tmp/secrets http://filer/os/ks/arch/secrets
 . /tmp/secrets
 #
-_mirror='https://mirror.csclub.uwaterloo.ca/archlinux/$repo/os/$arch'
 timedatectl set-ntp true
+for x in $(cat /proc/cmdline); do
+  case "$x" in
+    dist_mirror=*)
+      _mirror="${x#dist_mirror=}/\$repo/os/\$arch"
+      ;;
+  esac
+done
+if [ -z "${_mirror}" ]; then
+  _mirror='https://mirror.csclub.uwaterloo.ca/archlinux/$repo/os/$arch'
+fi
 
 # Disk
 _disk="/dev/${1:-nvme0n1}"
@@ -25,11 +34,10 @@ mkswap "${_disk}p2"
 mkfs.ext4 -F "${_disk}p3"
 
 # Install system
-#echo "Server = $_mirror" > /etc/pacman.d/mirrorlist
+echo "Server = $_mirror" > /etc/pacman.d/mirrorlist
 mount "${_disk}p3" /mnt
 mkdir -p /mnt/boot/efi
 mount "${_disk}p1" /mnt/boot/efi
-#pacman -Syy
 
 pacstrap /mnt \
  base \

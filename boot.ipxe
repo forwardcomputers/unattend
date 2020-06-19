@@ -13,7 +13,7 @@ set ubuntu-release 20.04
 set windows-release 10
 
 # Mirrors
-set arch-mirror http://archlinux.mirror.colo-serv.net/iso/latest
+set arch-mirror mirror.csclub.uwaterloo.ca/archlinux
 set debian-mirror debian.mirror.iweb.ca
 set debian-live debian.mirror.iweb.ca
 set fedora-mirror fedora.mirror.iweb.ca
@@ -51,9 +51,9 @@ item --key w win            ${bold}W${resetbold}indows ${windows-release} instal
 item --key a winauto        Windows ${windows-release} ${bold}a${resetbold}uto install
 item --key e winre          Windows ${windows-release} ${bold}e${resetbold}mergency recovery
 item
-item --key 1 arch           Arch linux
-item --key 2 fedoraai       Fedora ${fedora-release} auto install
-item --key 3 ubuntuai       Ubuntu ${ubuntu-release} auto install
+item --key 1 arch           1. Arch linux
+item --key 2 fedoraai       2. Fedora ${fedora-release} auto install
+item --key 3 ubuntuai       3. Ubuntu ${ubuntu-release} auto install
 item 
 item --key g gparted        ${bold}G${resetbold}raphical Partition Manager
 item --key z clone          Clone${bold}z${resetbold}illa
@@ -131,11 +131,14 @@ boot
 
 :arch
 imgfree
-initrd  ${arch-mirror}/arch/boot/${arch_fedora}/archiso.img || goto failed
-boot    ${arch-mirror}/arch/boot/${arch_fedora}/vmlinuz initrd=archiso.img \
-        archiso_http_srv=${arch-mirror}/ archisobasedir=arch \
-        script=${swboot-url}/pxe/unattend/lnx/arch/docker_install.sh \
-        ip=dhcp nomodeset console=tty0 console=tty1 || goto failed
+set url  http://${arch-mirror}/iso/latest
+set boot ${url}/arch/boot/${arch_fedora}
+set ks   ${swboot-url}/pxe/unattend/lnx/arch/docker_install.sh
+initrd   ${boot}/archiso.img || goto failed
+boot     ${boot}/vmlinuz initrd=archiso.img \
+         archiso_http_srv=${url}/ archisobasedir=arch \
+         script=${ks} ip=dhcp console=tty0 console=tty1 \
+         dist_mirror=http://${arch-mirror} || goto failed
 
 :fedoraai
 imgfree
