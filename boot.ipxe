@@ -13,6 +13,7 @@ set ubuntu-release 20.04
 set windows-release 10
 
 # Mirrors
+set arch-mirror http://archlinux.mirror.colo-serv.net/iso/latest
 set debian-mirror debian.mirror.iweb.ca
 set debian-live debian.mirror.iweb.ca
 set fedora-mirror fedora.mirror.iweb.ca
@@ -130,10 +131,9 @@ boot
 
 :arch
 imgfree
-set url http://mirror.csclub.uwaterloo.ca/archlinux/iso/latest
-initrd  ${url}/arch/boot/${arch_fedora}/archiso.img || goto failed
-boot    ${url}/arch/boot/${arch_fedora}/vmlinuz initrd=archiso.img \
-        archiso_http_srv=${url}/ archisobasedir=arch \
+initrd  ${arch-mirror}/arch/boot/${arch_fedora}/archiso.img || goto failed
+boot    ${arch-mirror}/arch/boot/${arch_fedora}/vmlinuz initrd=archiso.img \
+        archiso_http_srv=${arch-mirror}/ archisobasedir=arch \
         script=${swboot-url}/pxe/unattend/lnx/arch/docker_install.sh \
         ip=dhcp nomodeset console=tty0 console=tty1 || goto failed
 
@@ -201,9 +201,9 @@ item
 item --key 9 tumbleweed     ∞∞∞∞∞∞∞∞∞∞∞ OpenSuse Install
 item --key 0 opensuse       ∞∞∞∞ 9. Tumbleweed ∞∞∞∞∞∞∞∞∞∞ 0. Leap ${opensuse-release}
 item
-item --key A alpine         A. Alpine linux
+item --key a alpine         A. Alpine linux
 item
-item --key B alpine         B. Arch linux
+item --key b alpine         B. Arch linux
 item
 item --key 0x08 back        <== Back to top menu...
 choose selected && goto ${selected} || goto start
@@ -261,14 +261,6 @@ imgfree
 set url http://${opensuse-mirror}/opensuse/distribution/leap/${opensuse-release}/repo/oss
 initrd  ${url}/boot/${arch_fedora}/loader/initrd || goto failed
 boot    ${url}/boot/${arch_fedora}/loader/linux initrd=initrd install=${url} || goto failed
-
-:opensuselive
-imgfree
-sanboot iscsi:${iscsi-iqn} || goto failed
-#initrd  ${swboot-url}/pxe/misc/opensuse/initrd || goto failed
-#boot    ${swboot-url}/pxe/misc/opensuse/linux initrd=initrd \
-#        root=/dev/nfs nfsroot=${nfs-url}/pxe/misc/opensuse/ \
-#        ro ip=dhcp rd.live.image rd.live.ram=1 || goto failed
 
 :tumbleweed
 imgfree

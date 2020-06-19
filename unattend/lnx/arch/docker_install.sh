@@ -25,11 +25,11 @@ mkswap "${_disk}p2"
 mkfs.ext4 -F "${_disk}p3"
 
 # Install system
-echo "Server = $_mirror" > /etc/pacman.d/mirrorlist
+#echo "Server = $_mirror" > /etc/pacman.d/mirrorlist
 mount "${_disk}p3" /mnt
 mkdir -p /mnt/boot/efi
 mount "${_disk}p1" /mnt/boot/efi
-pacman -Syy
+#pacman -Syy
 
 pacstrap /mnt \
  base \
@@ -37,8 +37,10 @@ pacstrap /mnt \
  bash-completion \
  bluez \
  bluez-utils \
+ cockpit \
+ cockpit-dashboard \
  cockpit-docker \
- cockpit-pcp docker \
+ cockpit-pcp \
  efibootmgr \
  git \
  grub \
@@ -204,7 +206,7 @@ arch-chroot /mnt <<-_EOF_
 
 	# Install grub
 	sed -i 's/quiet/net.ifnames=0 ipv6.disable=1/' /etc/default/grub
-	grub-install --target=x86_64-efi  --recheck
+	grub-install --target=x86_64-efi --recheck
 	grub-mkconfig -o /boot/grub/grub.cfg
 
 	# Exit chroot system
