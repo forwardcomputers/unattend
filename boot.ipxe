@@ -6,34 +6,58 @@
 chain secrets || goto error
 
 # Distribution release version
-set debian-release stable
-set fedora-release 32
-set opensuse-release 15.2
-set ubuntu-release 20.04
-set windows-release 10
+set debian_release stable
+set debian_name stable
+set fedora_release 32
+set opensuse_release 15.2
+set ubuntu_release 20.04
+set ubuntu_name 20.04
+set windows_release 10
 
 # Mirrors
-set arch-mirror mirror.csclub.uwaterloo.ca/archlinux
-set debian-mirror debian.mirror.iweb.ca
-set debian-live debian.mirror.iweb.ca
-set fedora-mirror fedora.mirror.iweb.ca
-set opensuse-mirror mirror.csclub.uwaterloo.ca
-set ubuntu-mirror ubuntu.mirror.iweb.ca
+set arch_mirror mirror.csclub.uwaterloo.ca/archlinux
+set debian_mirror debian.mirror.iweb.ca
+set debian_live debian.mirror.iweb.ca
+set fedora_mirror fedora.mirror.iweb.ca
+set opensuse_mirror mirror.csclub.uwaterloo.ca
+set ubuntu_mirror ubuntu.mirror.iweb.ca
 
 # Some menu defaults
+set spaces2:hex 20:20
+set spaces2 ${spaces2:string}
+set spaces5:hex 20:20:20:20:20
+set spaces5 ${spaces5:string}
+set spaces15:hex 20:20:20:20:20:20:20:20:20:20:20:20:20:20:20
+set spaces15 ${spaces15:string}
 set esc:hex 1b
-set bold ${esc:string}[1m
-set orange ${esc:string}[33;0m
-set yellow ${esc:string}[33;1m
-set cyan ${esc:string}[36;1m
-set resetfg ${esc:string}[39m
-set resetbg ${esc:string}[49m
-set resetbold ${esc:string}[22m
 set reset ${esc:string}[0m
+set bold ${esc:string}[1m
+set ital ${esc:string}[3m
+set under ${esc:string}[4m
+set boldoff ${esc:string}[22m
+set italoff ${esc:string}[23m
+set underoff ${esc:string}[24m
+set fg_bla ${esc:string}[30m
+set fg_red ${esc:string}[31m
+set fg_gre ${esc:string}[32m
+set fg_yel ${esc:string}[33m
+set fg_blu ${esc:string}[34m
+set fg_mag ${esc:string}[35m
+set fg_cya ${esc:string}[36m
+set fg_whi ${esc:string}[37m
+set bg_bla ${esc:string}[40m
+set bg_red ${esc:string}[41m
+set bg_gre ${esc:string}[42m
+set bg_yel ${esc:string}[43m
+set bg_blu ${esc:string}[44m
+set bg_mag ${esc:string}[45m
+set bg_cya ${esc:string}[46m
+set bg_whi ${esc:string}[47m
 set cls ${esc:string}[2J
 set menu-timeout 30000
 set submenu-timeout ${menu-timeout}
 console --x 800 --y 600
+cpair --foreground 7 --background 0 0
 isset ${menu-default} || set menu-default exit
 
 # Figure out if client is 64-bit capable
@@ -47,25 +71,25 @@ iseq ${platform} efi && set archp efi || set archp bios
 # Main menu
 :start
 menu iPXE ${version} - ${manufacturer} ${product} - ${archb}bit ${archp}
-item --key w win            ${bold}W${resetbold}indows ${windows-release} install
-item --key a winauto        Windows ${windows-release} ${bold}a${resetbold}uto install
-item --key e winre          Windows ${windows-release} ${bold}e${resetbold}mergency recovery
+item --key w win            ${bold}W${boldoff}indows ${windows_release} install
+item --key a winauto        Windows ${windows_release} ${bold}a${boldoff}uto install
+item --key e winre          Windows ${windows_release} ${bold}e${boldoff}mergency recovery
 item
 item --key 1 arch           1. Arch linux
-item --key 2 fedoraai       2. Fedora ${fedora-release} auto install
-item --key 3 ubuntuai       3. Ubuntu ${ubuntu-release} auto install
+item --key 2 fedoraai       2. Fedora ${fedora_release} auto install
+item --key 3 ubuntuai       3. Ubuntu ${ubuntu_release} auto install
 item 
-item --key g gparted        ${bold}G${resetbold}raphical Partition Manager
-item --key z clone          Clone${bold}z${resetbold}illa
-item --key k krd            ${bold}K${resetbold}aspersky Rescue Disk
+item --key g gparted        ${bold}G${boldoff}raphical Partition Manager
+item --key z clone          Clone${bold}z${boldoff}illa
+item --key k krd            ${bold}K${boldoff}aspersky Rescue Disk
 item 
 item --gap --               ------------------------------ Advanced ---------------------------------
-item --key r refresh_menu   ${bold}R${resetbold}efresh menu
+item --key r refresh_menu   ${bold}R${boldoff}efresh menu
 item config                 Configure settings
 item shell                  Enter iPXE shell
-item --key s efishell       EFI ${bold}s${resetbold}hell
-item --key t reboot         Reboo${bold}t${resetbold}
-item --key x --default exit E${bold}x${resetbold}it (boot local disk)
+item --key s efishell       EFI ${bold}s${boldoff}hell
+item --key t reboot         Reboo${bold}t${boldoff}
+item --key x --default exit E${bold}x${boldoff}it (boot local disk)
 item --key o menu_other
 choose --timeout ${menu-timeout} selected || goto cancel
 set menu-timeout 0
@@ -131,18 +155,18 @@ boot
 
 :arch
 imgfree
-set url  http://${arch-mirror}/iso/latest
+set url  http://${arch_mirror}/iso/latest
 set boot ${url}/arch/boot/${arch_fedora}
 set ks   ${swboot-url}/pxe/unattend/lnx/arch/docker_install.sh
 initrd   ${boot}/archiso.img || goto failed
 boot     ${boot}/vmlinuz initrd=archiso.img \
          archiso_http_srv=${url}/ archisobasedir=arch \
          script=${ks} ip=dhcp console=tty0 console=tty1 \
-         dist_mirror=http://${arch-mirror} || goto failed
+         dist_mirror=http://${arch_mirror} || goto failed
 
 :fedoraai
 imgfree
-set url http://${fedora-mirror}/linux/releases/${fedora-release}/Everything/${arch_fedora}/os
+set url http://${fedora_mirror}/linux/releases/${fedora_release}/Everything/${arch_fedora}/os
 initrd  ${url}/images/pxeboot/initrd.img || goto failed
 boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} \
         inst.repo=${url} inst.stage2=${url} inst.ks=${swboot-url}/pxe/unattend/lnx/fedora/ks.cfg \
@@ -150,10 +174,10 @@ boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} \
 
 :ubuntuai
 imgfree
-set url http://${ubuntu-mirror}/ubuntu/dists/${ubuntu-release}/main/installer-${arch_debian}/current/legacy-images/netboot/ubuntu-installer/${arch_debian}
+set url http://${ubuntu_mirror}/ubuntu/dists/${ubuntu_release}/main/installer-${arch_debian}/current/legacy-images/netboot/ubuntu-installer/${arch_debian}
 initrd  ${url}/initrd.gz || goto failed
 boot    ${url}/linux initrd=initrd.gz \
-        mirror/http/hostname=${ubuntu-mirror} \
+        mirror/http/hostname=${ubuntu_mirror} \
         url=${swboot-url}/pxe/unattend/lnx/ubuntu/preseed.cfg \
         priority=critical ipv6.disable=1 auto=true || goto failed
 
@@ -187,33 +211,35 @@ boot    ${swboot-url}/pxe/misc/krd/boot/grub/k-x86_64 initrd=initrd.xz \
 #
 # Other menu
 :menu_other
+colour --basic 6 --rgb 0x40e0d0 6
 menu Other OS installation
-item
-item --key 1 debian         ∞∞∞∞∞∞∞∞∞∞∞ Debian ${debian-release}
-item --key 2 debianlive     ∞∞∞∞ 1. Install ∞∞∞∞∞∞∞∞∞∞∞ 2. live
-item
-item --key 3 fedora         ∞∞∞∞∞∞∞∞∞∞∞ Fedora ${fedora-release}
-item --key 4 fedoralive     ∞∞∞∞ 3. Install ∞∞∞∞∞∞∞∞∞∞∞ 4. live
-item
-item --key 5 rawhide        ∞∞∞∞∞∞∞∞∞∞∞ Fedora Rawhide
-item --key 6 rawhidelive    ∞∞∞∞ 5. Install ∞∞∞∞∞∞∞∞∞∞∞ 6. live
-item
-item --key 7 ubuntuserver         ∞∞∞∞∞∞∞∞∞∞∞ Ubuntu ${ubuntu-release}
-item --key 8 ubuntuworkstation     ∞∞∞∞ 7. Install ∞∞∞∞∞∞∞∞∞∞∞ 8. live
-item
-item --key 9 tumbleweed     ∞∞∞∞∞∞∞∞∞∞∞ OpenSuse Install
-item --key 0 opensuse       ∞∞∞∞ 9. Tumbleweed ∞∞∞∞∞∞∞∞∞∞ 0. Leap ${opensuse-release}
-item
+item --key 1 debian         ${spaces15}${spaces15}${spaces5}${bg_gre}${fg_bla}Debian ${debian_release} ${debian_name}${boldoff}
+item --key 2 debianlive     ${spaces15}1. Install${spaces15}${spaces15}2. live
+item --gap
+item --key 3 fedora         ${spaces15}${spaces15}${spaces5}Fedora ${fedora_release}
+item --key 4 fedoralive     ${spaces15}3. Install${spaces15}${spaces15}4. live
+item --gap
+item --key 5 rawhide        ${spaces15}${spaces15}${spaces5}Fedora Rawhide
+item --key 6 rawhidelive    ${spaces15}5. Install${spaces15}${spaces15}6. live
+item --gap
+item --key 7 ubuntuserver   ${spaces15}${spaces15}${spaces5}Ubuntu ${ubuntu_release} ${ubuntu_name}
+item --key 8 ubuntuwrkstn  ${spaces15}7. Install${spaces15}${spaces15}8. live
+item --gap
+item --key 9 tumbleweed     ${spaces15}${spaces15}${spaces5}OpenSuse Install
+item --key 0 opensuse       ${spaces15}9. Tumbleweed${spaces15}${spaces5}${spaces5}${spaces2}0. Leap ${opensuse_release}
+item --gap
 item --key a alpine         A. Alpine linux
-item
+item --gap
 item --key b alpine         B. Arch linux
-item
-item --key 0x08 back        <== Back to top menu...
+item --gap
+item --key z test           Z. Test
+item --gap
+item --key 0x08 --default back        <== Back to top menu...
 choose selected && goto ${selected} || goto start
 
 :alpine
 imgfree
-set url http://mirror.csclub.uwaterloo.ca/alpine/edge
+set url http://alpinelinux.mirror.iweb.ca/edge
 initrd  ${url}/releases/x86_64/netboot/initramfs-lts || goto failed
 boot    ${url}/releases/x86_64/netboot/vmlinuz-lts initrd=initramfs-lts \
         modloop=${url}/releases/x86_64/netboot/modloop-lts alpine_repo=${url}/main \
@@ -221,10 +247,10 @@ boot    ${url}/releases/x86_64/netboot/vmlinuz-lts initrd=initramfs-lts \
 
 :debian
 imgfree
-set url http://${debian-mirror}/debian/dists/${debian-release}/main/installer-${arch_debian}/current/images/netboot/debian-installer/${arch_debian}
+set url http://${debian_mirror}/debian/dists/${debian_release}/main/installer-${arch_debian}/current/images/netboot/debian-installer/${arch_debian}
 initrd  ${url}/initrd.gz || goto failed
 boot    ${url}/linux initrd=initrd.gz \
-        mirror/http/directory=/debian mirror/http/hostname=${debian-mirror} mirror/country=manual || goto failed
+        mirror/http/directory=/debian mirror/http/hostname=${debian_mirror} mirror/country=manual || goto failed
 
 :debianlive
 imgfree
@@ -235,7 +261,7 @@ boot    ${swboot-url}/pxe/misc/debian/vmlinuz initrd=initrd.img \
 
 :fedora
 imgfree
-set url http://${fedora-mirror}/linux/releases/${fedora-release}/Everything/${arch_fedora}/os
+set url http://${fedora_mirror}/linux/releases/${fedora_release}/Everything/${arch_fedora}/os
 initrd  ${url}/images/pxeboot/initrd.img || goto failed
 boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} devfs=nomount || goto failed
 
@@ -248,7 +274,7 @@ boot    ${swboot-url}/pxe/misc/fedora/vmlinuz initrd=initrd.img \
 
 :rawhide
 imgfree
-set url http://${fedora-mirror}/linux/development/rawhide/Everything/${arch_fedora}/os
+set url http://${fedora_mirror}/linux/development/rawhide/Everything/${arch_fedora}/os
 initrd  ${url}/images/pxeboot/initrd.img || goto failed
 boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} devfs=nomount || goto failed
 
@@ -261,13 +287,13 @@ boot    ${swboot-url}/pxe/misc/rawhide/vmlinuz initrd=initrd.img \
 
 :opensuse
 imgfree
-set url http://${opensuse-mirror}/opensuse/distribution/leap/${opensuse-release}/repo/oss
+set url http://${opensuse_mirror}/opensuse/distribution/leap/${opensuse_release}/repo/oss
 initrd  ${url}/boot/${arch_fedora}/loader/initrd || goto failed
 boot    ${url}/boot/${arch_fedora}/loader/linux initrd=initrd install=${url} || goto failed
 
 :tumbleweed
 imgfree
-set url http://provo-mirror.opensuse.org/tumbleweed/repo/oss
+set url http://provo_mirror.opensuse.org/tumbleweed/repo/oss
 initrd  ${url}/boot/${arch_fedora}/loader/initrd || goto failed
 boot    ${url}/boot/${arch_fedora}/loader/linux initrd=initrd install=${url} || goto failed
 
@@ -280,14 +306,19 @@ boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuzserver initrd=initrdserver \
 
 :ubuntulegacy
 imgfree
-set url http://${ubuntu-mirror}/ubuntu/dists/${ubuntu-release}/main/installer-${arch_debian}/current/legacy-images/netboot/ubuntu-installer/${arch_debian}
+set url http://${ubuntu_mirror}/ubuntu/dists/${ubuntu_release}/main/installer-${arch_debian}/current/legacy-images/netboot/ubuntu-installer/${arch_debian}
 initrd  ${url}/initrd.gz || goto failed
 boot    ${url}/linux initrd=initrd.gz \
-        mirror/http/directory=/ubuntu mirror/http/hostname=${ubuntu-mirror} mirror/country=manual || goto failed
+        mirror/http/directory=/ubuntu mirror/http/hostname=${ubuntu_mirror} mirror/country=manual || goto failed
 
-:ubuntuworkstation
+:ubuntuwrkstn
 imgfree
 initrd  ${swboot-url}/pxe/misc/ubuntu/initrdworkstation || goto failed
 boot    ${swboot-url}/pxe/misc/ubuntu/vmlinuzworkstation initrd=initrdworkstation \
         url=${swboot-url}/pxe/misc/ubuntu/ubuntuworkstation.iso \
         ethdevice-timeout=30 ip=dhcp root=/dev/ram0 ramdisk_size=5000000 || goto failed
+
+:test
+imgfree
+chain tftp://10.13.1.5/bootx64.efi || goto failed
+goto failed

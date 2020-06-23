@@ -145,9 +145,13 @@ get_debian () {
     _echo "  Files up to date."
   else
     _echo "Updating files"
+    _debian_version=$(awk -F'-' '/amd64-gnome.iso/ {print $3; exit}' "${_tmp}"/checksum.txt)
+    _debian_name=$(curl -Ls https://github.com/docker-library/official-images/raw/master/library/debian | awk -F": |, " '/latest/ {print $2}')
+    sed -i "/set debian_release / s/[^ ]* *$/$_debian_version/" "${_pxe}"/boot.ipxe
+    sed -i "/set debian_name / s/[^ ]* *$/$_debian_name/" "${_pxe}"/boot.ipxe
     _filename=$(awk '/amd64-gnome.iso/ {print $2; exit}' "${_tmp}"/checksum.txt)
     _echo "  Downloading package"
-    curl -sLo "${_tmp}"/debian.iso http://debian.mirror.iweb.ca/debian-cd/current-live/amd64/iso-hybrid/"$_filename"
+    curl -sLo "${_tmp}"/debian.iso http://debian.mirror.iweb.ca/debian-cd/"$_debian_version"-live/amd64/iso-hybrid/"$_filename"
     _echo "  Extracting files"
     7z e "${_tmp}/debian.iso" -o"${_tmp}/" 'live/filesystem.squashfs' 'live/initrd*' 'live/vmlinuz*'
     chmod 644 "${_tmp}"/*
@@ -162,8 +166,7 @@ get_debian () {
 get_fedora () {
   _echo "Getting Fedora Live CD"
   _old_checksum=$(awk '/^SHA/ {print $4; exit}' "${_misc}"/fedora/checksum.txt)
-  _fversion=$(curl -Ls 'https://en.wikipedia.org/wiki/Fedora_(operating_system)' | grep -o -P '(?<=Latest release</a></th><td>).*?(?=<)')
-  #_fversion=$(curl -Ls https://getfedora.org/en | grep -o -P '(?<=https://fedoraproject.org/wiki/Common_F).*?(?=_bugs)')
+  _fversion=$(curl -Ls https://github.com/docker-library/official-images/raw/master/library/fedora | awk -F": |, " '/latest/ {print $3}')
   _release=$(curl -Ls http://fedora.mirror.iweb.com/imagelist-fedora |  grep -o -P '(?<=Fedora-Workstation-Live-x86_64-'"$_fversion"'-).*?(?=.iso)')
   curl -sLo "${_tmp}"/checksum.txt http://fedora.mirror.iweb.ca/linux/releases/"$_fversion"/Workstation/x86_64/iso/Fedora-Workstation-"$_fversion"-"$_release"-x86_64-CHECKSUM
   _new_checksum=$(awk '/^SHA/ {print $4; exit}' "${_tmp}"/checksum.txt)
@@ -171,7 +174,7 @@ get_fedora () {
     _echo "  Files up to date."
   else
     _echo "Updating files"
-    sed -i "/set fedora-release / s/[^ ]* *$/$_fversion/" "${_pxe}"/boot.ipxe
+    sed -i "/set fedora_release / s/[^ ]* *$/$_fversion/" "${_pxe}"/boot.ipxe
     _filename=$(awk -F"[)(]" '/^SHA/ {print $2; exit}' "${_tmp}"/checksum.txt)
     _echo "  Downloading package"
     curl -sLo "${_tmp}"/fedora.iso http://fedora.mirror.iweb.com/linux/releases/"$_fversion"/Workstation/x86_64/iso/"$_filename"
@@ -215,7 +218,7 @@ get_opensuse () {
     _echo "  Files up to date."
   else
     _echo "Updating files"
-    sed -i "/set opensuse-release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
+    sed -i "/set opensuse_release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
     _echo "  Downloading package"
     curl -sLo "${_tmp}"/opensuse.iso https://mirror.csclub.uwaterloo.ca/opensuse/distribution/leap/"$_version"/live/openSUSE-Leap-"$_version"-KDE-Live-x86_64-Media.iso
     _echo "  Extracting files"
@@ -258,7 +261,8 @@ get_ubuntulive () {
   else
     _echo "Updating files"
     _version=$(awk -F'-' '{print $2; exit}' "${_tmp}"/checksum.txt)
-    sed -i "/set ubuntu-release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
+    sed -i "/set ubuntu_release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
+    sed -i "/set ubuntu_name / s/[^ ]* *$/$_name/" "${_pxe}"/boot.ipxe
     _echo "  Downloading package"
     curl -sLo "${_tmp}"/ubuntuworkstation.iso http://ubuntu-cd.mirror.iweb.ca/"$_name"/ubuntu-"$_version"-desktop-amd64.iso
     _echo "  Extracting files"
@@ -284,7 +288,8 @@ get_ubuntuserver () {
   else
     _echo "Updating files"
     _version=$(awk -F'-' '{print $2; exit}' "${_tmp}"/checksum.txt)
-    sed -i "/set ubuntu-release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
+    sed -i "/set ubuntu_release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
+    sed -i "/set ubuntu_name / s/[^ ]* *$/$_name/" "${_pxe}"/boot.ipxe
     _echo "  Downloading package"
     curl -sLo "${_tmp}"/ubuntuserver.iso http://ubuntu-cd.mirror.iweb.ca/"$_name"/ubuntu-"$_version"-live-server-amd64.iso
     _echo "  Extracting files"
