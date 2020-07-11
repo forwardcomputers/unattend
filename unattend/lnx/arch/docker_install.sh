@@ -45,6 +45,7 @@ pacstrap /mnt \
  bash-completion \
  bluez \
  bluez-utils \
+ cronie \
  cockpit \
  cockpit-dashboard \
  cockpit-docker \
@@ -122,9 +123,9 @@ arch-chroot /mnt <<-_EOF_
 	_EOF
 	curl -so /root/install.sh http://filer/os/docker-compose/portainer_install.sh
 	# Add check for updates in crontab
-	mkdir -p /etc/crontabs
-	echo -e '0\t3\t*\t*\t*\tprintf "%s\\\n" "Subject: From DOCKER" "" "" "\$(checkupdates)" | sendmail -f docker --host=filer alim@forwardcomputers.com' >> /etc/crontabs/root
-	chmod 600 /etc/crontabs/root
+	mkdir -p /var/spool/cron
+	echo -e '0\t3\t*\t*\t*\techo -e "Subject: From DOCKER\n\n\nAvailable updates\n\n$(checkupdates)" | sendmail --host=filer -f docker alim@forwardcomputers.com' > /var/spool/cron/root
+	chmod 600 /var/spool/cron/root
 
 	echo 'Add user'
 	# Adding user alternate user
@@ -206,6 +207,7 @@ arch-chroot /mnt <<-_EOF_
 	_EOF
 	systemctl enable --now \
     bluetooth.service \
+    cronie.service \
     cockpit.socket \
     docker.service \
     NetworkManager.service \

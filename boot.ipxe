@@ -6,12 +6,12 @@
 chain secrets || goto error
 
 # Distribution release version
-set debian_release stable
-set debian_name stable
-set fedora_release 32
-set opensuse_release 15.2
-set ubuntu_release 20.04
-set ubuntu_name 20.04
+set 
+set 
+set 32
+set 15.2
+set 
+set ubuntu_name 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server focal
 set windows_release 10
 
 # Mirrors
