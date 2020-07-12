@@ -309,7 +309,7 @@ main () {
   _tmp=/opt/filer/os/pxe/tmp
   _misc=/opt/filer/os/pxe/misc
   
-  if [ -e /.dockerenv ] && ! grep -sq update /var/spool/cron/crontabs/root ; then
+  if [ -e /.dockerenv ] && ! pidof cron ; then
     echo "0 5,10,16 * * * ${_pxe}/update" | crontab -
     cron -f -L 15
   fi
