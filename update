@@ -126,7 +126,7 @@ get_arch () {
   else
     _echo "    Error - $_new_version"
   fi
-  rm -rf "${_tmp}"/*
+  rm -rf "${_tmp:?}"/*
 }
 #
 get_debian () {
@@ -339,7 +339,7 @@ get_windowsupdate () {
     if [ "$_new_version" = "$_old_version" ]; then
       _echo "  Files up to date - $_new_version"
     else
-      if ! [ -z $_new_version ]; then
+      if ! [ -z "$_new_version" ]; then
         rm -f "${_win}"/wu/*
       fi
       _echo "    Downloading files - $_new_version"
@@ -422,7 +422,7 @@ get_nvidiavideo () {
   else
     _echo "    Error - $_new_version"
   fi
-  rm -rf "${_tmp}"/*
+  rm -rf "${_tmp:?}"/*
 }
 #
 get_intelvideo () {
@@ -577,9 +577,9 @@ get_bootcamp () {
   _dists=()
   _pkgUrls=()
 
-  while read "_pkgUrl"; do
+  while read -r "_pkgUrl"; do
       if [[ $_pkgUrl == *BootCampESD.pkg* ]]; then
-          read "_distUrl"
+          read -r "_distUrl"
           _distUrl="${_distUrl#*<string>}"
           _distUrl="${_distUrl%</string>*}"
           if [[ ! $_distUrl == *"English.dist"* ]]; then
@@ -635,7 +635,6 @@ main () {
   _tmp=/opt/filer/os/pxe/tmp
   _misc=/opt/filer/os/pxe/misc
   _win=/opt/filer/os/win
-  _osx=/opt/filer/os/osx
 
   if [ "${TERM}" = "dumb" ]; then
     if [ -e /.dockerenv ] && ! pidof cron ; then
