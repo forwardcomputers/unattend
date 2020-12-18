@@ -1,5 +1,5 @@
 #!/bin/sh
-# 
+#
 echo 'Staring Arch Linux auto install'
 #
 sed -i 's/^\[DHCP]/\[DHCP]\nUseDomains=true/' /etc/systemd/network/ethernet.network
@@ -88,7 +88,8 @@ arch-chroot /mnt <<-_EOF_
 
 	echo 'Set hostname'
 	# Set the hostname
-	echo ${_hostname} > /etc/hostname
+	hostnamectl set-hostname ${_hostname}
+  echo "127.0.0.1 ${_hostname} ${_hostname}.${_dns_name}" >> /etc/hosts
 
 	echo 'Set network'
 	# Network
@@ -124,7 +125,7 @@ arch-chroot /mnt <<-_EOF_
 	curl -so /root/install.sh http://filer/os/docker-compose/portainer_install.sh
 	# Add check for updates in crontab
 	mkdir -p /var/spool/cron
-	echo -e '0\t3\t*\t*\t*\techo -e "Subject: From DOCKER\n\n\nAvailable updates\n\n$(checkupdates)" | sendmail --host=filer -f docker alim@forwardcomputers.com' > /var/spool/cron/root
+	echo -e '0\t3\t*\t*\t*\techo -e "Subject: From DOCKER\n\n\nAvailable updates\n\n$(checkupdates)" | sendmail --host=filer -f docker ali@forwardcomputers.com' > /var/spool/cron/root
 	chmod 600 /var/spool/cron/root
 
 	echo 'Add user'
@@ -189,7 +190,12 @@ arch-chroot /mnt <<-_EOF_
 		  "metrics-addr": "0.0.0.0:9323"
 		}
 		_EOF
-	sed -i "s|-H fd://||" /usr/lib/systemd/system/docker.service
+	mkdir -p /etc/systemd/system/docker.service.d
+	cat > /etc/systemd/system/docker.service.d/override.conf <<-_EOF
+	[Service]
+	ExecStart=
+	ExecStart=/usr/bin/dockerd --containerd=/run/containerd/containerd.sock
+	_EOF
 
 	echo 'Config cockpit'
 	# Config cocpit
@@ -215,7 +221,7 @@ arch-chroot /mnt <<-_EOF_
 	sed -i 's/^#AutoEnable=false/AutoEnable=true/' /etc/bluetooth/main.conf
 
 	# Install grub
-	sed -i 's/quiet/net.ifnames=0 ipv6.disable=1/' /etc/default/grub
+	sed -i 's/quiet/net.ifnames=0 ipv6.disable=1 audit=0/' /etc/default/grub
 	grub-install --target=x86_64-efi --recheck
 	grub-mkconfig -o /boot/grub/grub.cfg
 

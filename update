@@ -1,13 +1,19 @@
 #!/bin/bash
 # shellcheck disable=SC1083
-#set -E              # any trap on ERR is inherited by shell functions
 #set -e              # exit if error occurs
 set -u              # treat unset variables and parameters as an error
 set -o pipefail     # fail if pipe failed
 #set -x
 #
+# Windows Update section is from Keith Garner gist
+# https://gist.github.com/keithga/1ad0abd1f7ba6e2f8aff63d94ab03048
+# Bootcamp section is from of David Anderson answer in StackExchange and Tim Sutton brigadier repo
+# https://apple.stackexchange.com/questions/376915/does-apple-offer-a-page-that-lists-all-versions-of-published-boot-camp-drivers/376921#376921
+# https://github.com/timsutton/brigadier
+#
 _echo () {
-  echo "${1}" > "${_console}"
+#  echo "${1}" | tee -a "${_console}" "${_logFile}" >/dev/null
+  echo "${1}" | tee -a -i "${_console}" >>"${_logFile}"
 }
 #
 get_file () {
@@ -37,7 +43,7 @@ copy_file () {
     rm "$1"
     return 0
   else
-    _echo "  Updating ${2}"
+    _echo "    Updating ${2}"
     mv "${1}" "${2}"
     chmod 644 "${2}"
     chown 1001:20 "${2}"
@@ -45,68 +51,28 @@ copy_file () {
 }
 #
 get_ipxe () {
-  _echo "Getting ipxe"
-  _src=/opt/filer/os/pxe/src/ipxe/src
-  pushd "${_src}" || return
-  _local=$(git rev-parse @)
-  _remote=$(git rev-parse @{u})
-
-  if [ "${_local}" == "${_remote}" ]; then
-    _echo "  Files up to date."
-  else
-    _echo "  Building files"
-    make -C "${_src}" clean
-    git fetch --all -q
-    git reset --hard origin/master -q
-
-    sed -i '
-      /CONSOLE_FRAMEBUFFER/ s/^\S*/#define/
-    ' "${_src}"/config/console.h
-
-    sed -i '
-      /DOWNLOAD_PROTO_FTP/ s/^\S*/#define/
-      /DOWNLOAD_PROTO_NFS/ s/^\S*/#define/
-      /DOWNLOAD_PROTO_FILE/ s/^\S*/#define/
-      /SANBOOT_PROTO_FCP/ s/^\S*/#undef/
-      /IWMGMT_CMD/ s/^\S*/#define/
-      /IBMGMT_CMD/ s/^\S*/#define/
-      /FCMGMT_CMD/ s/^\S*/#define/
-      /NSLOOKUP_CMD/ s/^\S*/#define/
-      /VLAN_CMD/ s/^\S*/#define/
-      /REBOOT_CMD/ s/^\S*/#define/
-      /POWEROFF_CMD/ s/^\S*/#define/
-      /PING_CMD/ s/^\S*/#define/
-      /CONSOLE_CMD/ s/^\S*/#define/
-      /VNIC_IPOIB/ s/^\S*/#undef/
-      /TIVOLI_VMM_WORKAROUND/ s/^\S*/#undef/
-    ' "${_src}"/config/general.h
-
-    if make -j 16 -C "${_src}" bin-x86_64-efi/ipxe.efi EMBED="${_pxe}"/src/filer.ipxe ; then
-      cp src/ipxe/src/bin-x86_64-efi/ipxe.efi "${_pxe}"/ipxe.efi
-    fi
-  fi
-  popd || return
+  get_file ipxe.efi http://boot.ipxe.org/ipxe.efi "${_pxe}"/
+  get_file ipxe.pxe http://boot.ipxe.org/ipxe.pxe "${_pxe}"/
 }
 #
 get_wimboot () {
   _echo "Getting wimboot"
-  curl -Ls http://git.ipxe.org/releases/wimboot/wimboot-latest.tar.bz2 | 7z e -si -tbzip2 -so | 7z e -si -ttar -o"${_tmp}/" 'wimboot-2.6.0-signed/wimboot'
+  curl -Ls http://git.ipxe.org/releases/wimboot/wimboot-latest.tar.bz2 | 7z e -bsp0 -bso0 -si -tbzip2 -so | 7z e -bsp0 -bso0 -si -ttar -o"${_tmp}/" 'wimboot-2.6.0-signed/wimboot'
   copy_file "${_tmp}"/wimboot "${_pxe}"/wimboot
 }
 #
 get_clonezilla () {
   _echo "Getting Clonezilla"
-  _old_checksum=$(awk '/amd64.zip/ {print $1; exit}' "${_misc}"/clonezilla/checksum.txt)
+  _old_checksum=$( awk '/amd64.zip/ {print $1; exit}' "${_misc}"/clonezilla/checksum.txt )
   curl -sLo "${_tmp}"/checksum.txt http://free.nchc.org.tw/clonezilla-live/stable/CHECKSUMS.TXT
-  _new_checksum=$(awk '/amd64.zip/ {print $1; exit}' "${_tmp}"/checksum.txt)
+  _new_checksum=$( awk '/amd64.zip/ {print $1; exit}' "${_tmp}"/checksum.txt )
   if [ "$_new_checksum" = "$_old_checksum" ]; then
     _echo "  Files up to date."
   else
-    _echo "Updating files"
-    _filename=$(awk '/amd64.zip/ {print $2; exit}' "${_tmp}"/checksum.txt)
-    _echo "  Downloading package"
+    _filename=$( awk '/amd64.zip/ {print $2; exit}' "${_tmp}"/checksum.txt )
+    _echo "    Downloading files"
     curl -sLo "${_tmp}"/clonezilla.zip http://free.nchc.org.tw/clonezilla-live/stable/"$_filename"
-    _echo "  Extracting files"
+    _echo "    Extracting files"
     7z e "${_tmp}/clonezilla.zip" -o"${_tmp}/" 'live/filesystem.squashfs' 'live/initrd.img' 'live/vmlinuz'
     chmod 644 "${_tmp}"/*
     chown 1001:20 "${_tmp}"/*
@@ -117,17 +83,16 @@ get_clonezilla () {
 #
 get_gparted () {
   _echo "Getting GParted"
-  _old_checksum=$(awk '/amd64.zip/ {print $1; exit}' "${_misc}"/gparted/checksum.txt)
+  _old_checksum=$( awk '/amd64.zip/ {print $1; exit}' "${_misc}"/gparted/checksum.txt )
   curl -sLo "${_tmp}"/checksum.txt https://gparted.org/gparted-live/stable/CHECKSUMS.TXT
-  _new_checksum=$(awk '/amd64.zip/ {print $1; exit}' "${_tmp}"/checksum.txt)
+  _new_checksum=$( awk '/amd64.zip/ {print $1; exit}' "${_tmp}"/checksum.txt )
   if [ "$_new_checksum" = "$_old_checksum" ]; then
     _echo "  Files up to date."
   else
-    _echo "Updating files"
-    _filename=$(awk '/amd64.zip/ {print $2; exit}' "${_tmp}"/checksum.txt)
-    _echo "  Downloading package"
+    _filename=$( awk '/amd64.zip/ {print $2; exit}' "${_tmp}"/checksum.txt )
+    _echo "    Downloading files"
     curl -sLo "${_tmp}"/gparted.zip https://downloads.sourceforge.net/gparted/"$_filename"
-    _echo "  Extracting files"
+    _echo "    Extracting files"
     7z e "${_tmp}/gparted.zip" -o"${_tmp}/" 'live/filesystem.squashfs' 'live/initrd.img' 'live/vmlinuz'
     chmod 644 "${_tmp}"/*
     chown 1001:20 "${_tmp}"/*
@@ -136,193 +101,562 @@ get_gparted () {
   rm -f "${_tmp}"/*
 }
 #
+get_arch () {
+  _echo "Getting Arch Bootstrap"
+  _old_checksum=$( awk '/bootstrap/ {print $1; exit}' "${_misc}"/arch/checksum.txt )
+  curl -sLo "${_tmp}"/checksum.txt http://mirror.csclub.uwaterloo.ca/archlinux/iso/latest/sha1sums.txt
+  _new_checksum=$( awk '/bootstrap/ {print $1; exit}' "${_tmp}"/checksum.txt )
+  _new_version=$( awk -F'-' '/bootstrap/ {print $3; exit}' "${_tmp}"/checksum.txt )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_checksum" = "$_old_checksum" ]; then
+      _echo "  Files up to date - Arch Bootstrap $_new_version"
+    else
+      _filename=$( awk '/bootstrap/ {print $2; exit}' "${_tmp}"/checksum.txt )
+      _echo "    Downloading files - Arch Bootstrap $_new_version"
+      curl -sLo "${_tmp}"/arch.tar.gz http://mirror.csclub.uwaterloo.ca/archlinux/iso/latest/"$_filename"
+      tar -xzf "${_tmp}"/arch.tar.gz -C "${_tmp}"
+      _archDirectory=$( find "${_tmp}" -maxdepth 1 -mindepth 1 -type d )
+      pushd "${_archDirectory}"
+      tar -czf ../ArchWSL.tar.gz .
+      popd
+      chmod 644 "${_tmp}"/ArchWSL.tar.gz
+      chown 1001:20 "${_tmp}"/ArchWSL.tar.gz
+      mv -f "${_tmp}"/{checksum.txt,ArchWSL.tar.gz} "${_misc}"/arch/
+    fi
+  else
+    _echo "    Error - $_new_version"
+  fi
+  rm -rf "${_tmp}"/*
+}
+#
 get_debian () {
   _echo "Getting Debian Live CD"
-  _old_checksum=$(awk '/amd64-gnome.iso/ {print $1; exit}' "${_misc}"/debian/checksum.txt)
+  _old_checksum=$( awk '/amd64-gnome.iso/ {print $1; exit}' "${_misc}"/debian/checksum.txt )
+  _name=$( curl -Ls https://github.com/docker-library/official-images/raw/master/library/debian | awk -F": |, " '/latest/ {print $2}' )
   curl -sLo "${_tmp}"/checksum.txt http://debian.mirror.iweb.ca/debian-cd/current-live/amd64/iso-hybrid/MD5SUMS
-  _new_checksum=$(awk '/amd64-gnome.iso/ {print $1; exit}' "${_tmp}"/checksum.txt)
-  if [ "$_new_checksum" = "$_old_checksum" ]; then
-    _echo "  Files up to date."
+  _new_checksum=$( awk '/amd64-gnome.iso/ {print $1; exit}' "${_tmp}"/checksum.txt)
+  _new_version=$( awk -F'-' '/amd64-gnome.iso/ {print $3; exit}' "${_tmp}"/checksum.txt )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_checksum" = "$_old_checksum" ]; then
+      _echo "  Files up to date - Debian $_name $_new_version"
+    else
+      sed -i "/set debian_release / s/[^ ]* *$/$_new_version/" "${_pxe}"/boot.ipxe
+      sed -i "/set debian_name / s/[^ ]* *$/$_name/" "${_pxe}"/boot.ipxe
+      _filename=$( awk '/amd64-gnome.iso/ {print $2; exit}' "${_tmp}"/checksum.txt )
+      _echo "    Downloading files - Debian $_name $_new_version"
+      mkdir "${_tmp}"/net
+      curl -sLo "${_tmp}"/net/initrd.img http://fedora.mirror.iweb.com/linux/releases/"$_new_version"/Everything/x86_64/os/images/pxeboot/initrd.img
+      curl -sLo "${_tmp}"/net/vmlinuz http://fedora.mirror.iweb.com/linux/releases/"$_new_version"/Everything/x86_64/os/images/pxeboot/vmlinuz
+      curl -sLo "${_tmp}"/debian.iso http://debian.mirror.iweb.ca/debian-cd/"$_new_version"-live/amd64/iso-hybrid/"$_filename"
+      7z e "${_tmp}/debian.iso" -o"${_tmp}/" 'live/filesystem.squashfs' 'live/initrd*' 'live/vmlinuz*' > /dev/null
+      chmod 644 "${_tmp}"/*
+      chown 1001:20 "${_tmp}"/*
+      mv "${_tmp}"/initrd* "${_misc}"/debian/initrd.img
+      mv "${_tmp}"/vmlinuz* "${_misc}"/debian/vmlinuz
+      mv -f "${_tmp}"/{checksum.txt,filesystem.squashfs} "${_misc}"/debian/
+      rm -rf "${_misc}"/debian/net
+      mv -f "${_tmp}"/net "${_misc}"/debian/
+    fi
   else
-    _echo "Updating files"
-    _debian_version=$(awk -F'-' '/amd64-gnome.iso/ {print $3; exit}' "${_tmp}"/checksum.txt)
-    _debian_name=$(curl -Ls https://github.com/docker-library/official-images/raw/master/library/debian | awk -F": |, " '/latest/ {print $2}')
-    sed -i "/set debian_release / s/[^ ]* *$/$_debian_version/" "${_pxe}"/boot.ipxe
-    sed -i "/set debian_name / s/[^ ]* *$/$_debian_name/" "${_pxe}"/boot.ipxe
-    _filename=$(awk '/amd64-gnome.iso/ {print $2; exit}' "${_tmp}"/checksum.txt)
-    _echo "  Downloading package"
-    curl -sLo "${_tmp}"/debian.iso http://debian.mirror.iweb.ca/debian-cd/"$_debian_version"-live/amd64/iso-hybrid/"$_filename"
-    _echo "  Extracting files"
-    7z e "${_tmp}/debian.iso" -o"${_tmp}/" 'live/filesystem.squashfs' 'live/initrd*' 'live/vmlinuz*'
-    chmod 644 "${_tmp}"/*
-    chown 1001:20 "${_tmp}"/*
-    mv "${_tmp}"/initrd* debian/initrd.img
-    mv "${_tmp}"/vmlinuz* debian/vmlinuz
-    mv -f "${_tmp}"/{checksum.txt,filesystem.squashfs} "${_misc}"/debian/
+    _echo "    Error - $_name $_new_version"
   fi
   rm -f "${_tmp}"/*
 }
 #
 get_fedora () {
   _echo "Getting Fedora Live CD"
-  _old_checksum=$(awk '/^SHA/ {print $4; exit}' "${_misc}"/fedora/checksum.txt)
-  _fversion=$(curl -Ls https://github.com/docker-library/official-images/raw/master/library/fedora | awk -F": |, " '/latest/ {print $3}')
-  _release=$(curl -Ls http://fedora.mirror.iweb.com/imagelist-fedora |  grep -o -P '(?<=Fedora-Workstation-Live-x86_64-'"$_fversion"'-).*?(?=.iso)')
-  curl -sLo "${_tmp}"/checksum.txt http://fedora.mirror.iweb.ca/linux/releases/"$_fversion"/Workstation/x86_64/iso/Fedora-Workstation-"$_fversion"-"$_release"-x86_64-CHECKSUM
-  _new_checksum=$(awk '/^SHA/ {print $4; exit}' "${_tmp}"/checksum.txt)
-  if [ "$_new_checksum" = "$_old_checksum" ]; then
-    _echo "  Files up to date."
+  _old_checksum=$( awk '/^SHA/ {print $4; exit}' "${_misc}"/fedora/checksum.txt )
+  _new_version=$( curl -Ls https://github.com/docker-library/official-images/raw/master/library/fedora | awk -F": |, " '/latest/ {print $3}' )
+  _release=$( curl -Ls http://fedora.mirror.iweb.com/imagelist-fedora |  grep -o -P '(?<=Fedora-Workstation-Live-x86_64-'"$_new_version"'-).*?(?=.iso)' | head -1 )
+  curl -sLo "${_tmp}"/checksum.txt http://fedora.mirror.iweb.ca/linux/releases/"$_new_version"/Workstation/x86_64/iso/Fedora-Workstation-"$_new_version"-"$_release"-x86_64-CHECKSUM
+  _new_checksum=$( awk '/^SHA/ {print $4; exit}' "${_tmp}"/checksum.txt )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_checksum" = "$_old_checksum" ]; then
+      _echo "  Files up to date - Fedora $_new_version"
+    else
+      sed -i "/set fedora_release / s/[^ ]* *$/$_new_version/" "${_pxe}"/boot.ipxe
+      _filename=$( awk -F"[)(]" '/^SHA/ {print $2; exit}' "${_tmp}"/checksum.txt )
+      _echo "    Downloading files - Fedora $_new_version"
+      mkdir "${_tmp}"/net
+      curl -sLo "${_tmp}"/net/initrd.img http://fedora.mirror.iweb.com/linux/releases/"$_new_version"/Everything/x86_64/os/images/pxeboot/initrd.img
+      curl -sLo "${_tmp}"/net/vmlinuz http://fedora.mirror.iweb.com/linux/releases/"$_new_version"/Everything/x86_64/os/images/pxeboot/vmlinuz
+      curl -sLo "${_tmp}"/fedora.iso http://fedora.mirror.iweb.com/linux/releases/"$_new_version"/Workstation/x86_64/iso/"$_filename"
+      7z e "${_tmp}/fedora.iso" -o"${_tmp}/" 'LiveOS/squashfs.img' 'images/pxeboot/initrd.img' 'images/pxeboot/vmlinuz' > /dev/null
+      chmod 644 "${_tmp}"/*
+      chown 1001:20 "${_tmp}"/*
+      mv -f "${_tmp}"/{checksum.txt,squashfs.img,initrd.img,vmlinuz} "${_misc}"/fedora/
+      rm -rf "${_misc}"/fedora/net
+      mv -f "${_tmp}"/net "${_misc}"/fedora/
+    fi
   else
-    _echo "Updating files"
-    sed -i "/set fedora_release / s/[^ ]* *$/$_fversion/" "${_pxe}"/boot.ipxe
-    _filename=$(awk -F"[)(]" '/^SHA/ {print $2; exit}' "${_tmp}"/checksum.txt)
-    _echo "  Downloading package"
-    curl -sLo "${_tmp}"/fedora.iso http://fedora.mirror.iweb.com/linux/releases/"$_fversion"/Workstation/x86_64/iso/"$_filename"
-    _echo "  Extracting files"
-    7z e "${_tmp}/fedora.iso" -o"${_tmp}/" 'LiveOS/squashfs.img' 'images/pxeboot/initrd.img' 'images/pxeboot/vmlinuz'
-    chmod 644 "${_tmp}"/*
-    chown 1001:20 "${_tmp}"/*
-    mv -f "${_tmp}"/{checksum.txt,squashfs.img,initrd.img,vmlinuz} "${_misc}"/fedora/
+    _echo "    Error - $_new_version"
   fi
   rm -f "${_tmp}"/*
 }
 #
 get_rawhide () {
   _echo "Getting Fedora Rawhide Live CD"
-  _old_checksum=$(awk '/^SHA/ {print $4; exit}' "${_misc}"/rawhide/checksum.txt)
-  _release=$(curl -sL http://fedora.mirror.iweb.com/linux/development/rawhide/COMPOSE_ID | awk -F'-' '{print $3}')
-  curl -sLo "${_tmp}"/checksum.txt http://fedora.mirror.iweb.com/linux/development/rawhide/Workstation/x86_64/iso/Fedora-Workstation-Rawhide-x86_64-"$_release"-CHECKSUM
-  _new_checksum=$(awk '/^SHA/ {print $4; exit}' "${_tmp}"/checksum.txt)
-  if [ "$_new_checksum" = "$_old_checksum" ]; then
-    _echo "  Files up to date."
+  _old_checksum=$( awk '/^SHA/ {print $4; exit}' "${_misc}"/rawhide/checksum.txt )
+  _new_version=$( curl -sL http://fedora.mirror.iweb.com/linux/development/rawhide/COMPOSE_ID | awk -F'-' '{print $3}' )
+  curl -sLo "${_tmp}"/checksum.txt http://fedora.mirror.iweb.com/linux/development/rawhide/Workstation/x86_64/iso/Fedora-Workstation-Rawhide-x86_64-"$_new_version"-CHECKSUM
+  _new_checksum=$( awk '/^SHA/ {print $4; exit}' "${_tmp}"/checksum.txt )
+  if [[ "${_new_version}" == [[:digit:]]* ]]; then
+    if [ "$_new_checksum" = "$_old_checksum" ]; then
+      _echo "  Files up to date - Fedora Rawhide $_new_version"
+    else
+      _filename=$( awk -F"[)(]" '/^SHA/ {print $2; exit}' "${_tmp}"/checksum.txt )
+      _echo "    Downloading files - Fedora Rawhide $_new_version"
+      mkdir "${_tmp}"/net
+      curl -sLo "${_tmp}"/net_initrd.img http://fedora.mirror.iweb.com/linux/development/rawhide/Everything/x86_64/os/images/pxeboot/initrd.img
+      curl -sLo "${_tmp}"/net_vmlinuz http://fedora.mirror.iweb.com/linux/development/rawhide/Everything/x86_64/os/images/pxeboot/vmlinuz
+      curl -sLo "${_tmp}"/rawhide.iso http://fedora.mirror.iweb.com/linux/development/rawhide/Workstation/x86_64/iso/"$_filename"
+      7z e "${_tmp}/rawhide.iso" -o"${_tmp}/" 'LiveOS/squashfs.img' 'images/pxeboot/initrd.img' 'images/pxeboot/vmlinuz' > /dev/null
+      chmod 644 "${_tmp}"/*
+      chown 1001:20 "${_tmp}"/*
+      mv -f "${_tmp}"/{checksum.txt,squashfs.img,initrd.img,vmlinuz} "${_misc}"/rawhide/
+      rm -rf "${_misc}"/fedora/net
+      mv -f "${_tmp}"/net "${_misc}"/fedora/
+    fi
   else
-    _echo "Updating files"
-    _echo "  Downloading package"
-    curl -sLo "${_tmp}"/rawhide.iso http://fedora.mirror.iweb.com/linux/development/rawhide/Workstation/x86_64/iso/Fedora-Workstation-Live-x86_64-Rawhide-"$_release".iso
-    _echo "  Extracting files"
-    7z e "${_tmp}/rawhide.iso" -o"${_tmp}/" 'LiveOS/squashfs.img' 'images/pxeboot/initrd.img' 'images/pxeboot/vmlinuz'
-    chmod 644 "${_tmp}"/*
-    chown 1001:20 "${_tmp}"/*
-    mv -f "${_tmp}"/{checksum.txt,squashfs.img,initrd.img,vmlinuz} "${_misc}"/rawhide/
+    _echo "    Error - $_new_version"
   fi
   rm -f "${_tmp}"/*
 }
 #
 get_opensuse () {
   _echo "Getting openSUSE Live CD"
-  _old_checksum=$(awk '{print $1}' "${_misc}"/opensuse/checksum.txt)
-  _version=$(curl -Ls https://software.opensuse.org/distributions | grep -o -P '(?<=openSUSE:Leap:).*?(?=")' | head -1 || true)
-  curl -sLo "${_tmp}"/checksum.txt https://mirror.csclub.uwaterloo.ca/opensuse/distribution/leap/"$_version"/live/openSUSE-Leap-"$_version"-KDE-Live-x86_64-Media.iso.sha256
-  _new_checksum=$(awk '{print $1}' "${_tmp}"/checksum.txt)
-  if [ "$_new_checksum" = "$_old_checksum" ]; then
-    _echo "  Files up to date."
+  _old_checksum=$( awk '{print $1}' "${_misc}"/opensuse/checksum.txt )
+  _new_version=$( curl -Ls https://software.opensuse.org/distributions | grep -o -P '(?<=openSUSE:Leap:).*?(?=")' | head -1 || true )
+  curl -sLo "${_tmp}"/checksum.txt https://mirror.csclub.uwaterloo.ca/opensuse/distribution/leap/"$_new_version"/live/openSUSE-Leap-"$_new_version"-KDE-Live-x86_64-Media.iso.sha256
+  _new_checksum=$( awk '{print $1}' "${_tmp}"/checksum.txt )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_checksum" = "$_old_checksum" ]; then
+      _echo "  Files up to date - OpenSuse $_new_version"
+    else
+      sed -i "/set opensuse_release / s/[^ ]* *$/$_new_version/" "${_pxe}"/boot.ipxe
+      _echo "    Downloading files - OpenSuse $_new_version"
+      _filename=$( awk '{print $2}' "${_tmp}"/checksum.txt )
+      curl -sLo "${_tmp}"/opensuse.iso https://mirror.csclub.uwaterloo.ca/opensuse/distribution/leap/"$_new_version"/live/"$_filename"
+      chmod 644 "${_tmp}"/*
+      chown 1001:20 "${_tmp}"/*
+      mv -f "${_tmp}"/{checksum.txt,opensuse.iso} "${_misc}"/opensuse/
+    fi
   else
-    _echo "Updating files"
-    sed -i "/set opensuse_release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
-    _echo "  Downloading package"
-    curl -sLo "${_tmp}"/opensuse.iso https://mirror.csclub.uwaterloo.ca/opensuse/distribution/leap/"$_version"/live/openSUSE-Leap-"$_version"-KDE-Live-x86_64-Media.iso
-    _echo "  Extracting files"
-    # 7z e "${_tmp}/opensuse.iso" -o"${_tmp}/" 'LiveOS/squashfs.img' 'boot/x86_64/loader/initrd' 'boot/x86_64/loader/linux'
-    chmod 644 "${_tmp}"/*
-    chown 1001:20 "${_tmp}"/*
-    mv -f "${_tmp}"/{checksum.txt,opensuse.iso} "${_misc}"/opensuse/
+    _echo "    Error - $_new_version"
   fi
   rm -f "${_tmp}"/*
 }
 #
 get_tumbleweed () {
   _echo "Getting openSUSE Tumbleweed Live CD"
-  _old_checksum=$(awk '{print $1}' "${_misc}"/tumbleweed/checksum.txt)
+  _old_checksum=$( awk '{print $1}' "${_misc}"/tumbleweed/checksum.txt )
   curl -sLo "${_tmp}"/checksum.txt http://mirror.umd.edu/opensuse/tumbleweed/iso/openSUSE-Tumbleweed-KDE-Live-x86_64-Current.iso.sha256
-  _new_checksum=$(awk '{print $1}' "${_tmp}"/checksum.txt)
-  if [ "$_new_checksum" = "$_old_checksum" ]; then
-    _echo "  Files up to date."
+  _new_version=$( grep -o -P '(?<=Snapshot).*?(?=-)' "${_tmp}"/checksum.txt )
+  _new_checksum=$( awk '{print $1}' "${_tmp}"/checksum.txt )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_checksum" = "$_old_checksum" ]; then
+      _echo "  Files up to date - OpenSuse Tumbleweed $_new_version"
+    else
+      _echo "    Downloading files - OpenSuse Tumbleweed $_new_version"
+      curl -sLo "${_tmp}"/tumbleweed.iso http://mirror.umd.edu/opensuse/tumbleweed/iso/openSUSE-Tumbleweed-KDE-Live-x86_64-Current.iso
+      chmod 644 "${_tmp}"/*
+      chown 1001:20 "${_tmp}"/*
+      mv -f "${_tmp}"/{checksum.txt,tumbleweed.iso} "${_misc}"/tumbleweed/
+    fi
   else
-    _echo "Updating files"
-    _echo "  Downloading package"
-    curl -sLo "${_tmp}"/tumbleweed.iso http://mirror.umd.edu/opensuse/tumbleweed/iso/openSUSE-Tumbleweed-KDE-Live-x86_64-Current.iso
-    _echo "  Extracting files"
-    # 7z e "${_tmp}/tumbleweed.iso" -o"${_tmp}/" 'LiveOS/squashfs.img' 'boot/x86_64/loader/initrd' 'boot/x86_64/loader/linux'
-    chmod 644 "${_tmp}"/*
-    chown 1001:20 "${_tmp}"/*
-    mv -f "${_tmp}"/{checksum.txt,tumbleweed.iso} "${_misc}"/tumbleweed/
+    _echo "    Error - $_new_version"
   fi
   rm -f "${_tmp}"/*
 }
 #
 get_ubuntulive () {
   _echo "Getting Ubuntu Live CD"
-  _old_checksum=$(cat "${_misc}"/ubuntu/checksumworkstation.txt)
-  _name=$(curl -sl https://raw.githubusercontent.com/tianon/docker-brew-ubuntu-core/master/rolling)
-  curl -sLo "${_tmp}"/checksum.txt http://ubuntu-cd.mirror.iweb.ca/"$_name"/MD5SUMS
-  _new_checksum=$(awk '/desktop/ {print $1; exit}' "${_tmp}"/checksum.txt)
-  if [ "$_new_checksum" = "$_old_checksum" ]; then
-    _echo "  Files up to date."
+  _old_checksum=$( cat "${_misc}"/ubuntu/checksumworkstation.txt 2>/dev/null )
+  _name=$( curl -sl https://raw.githubusercontent.com/tianon/docker-brew-ubuntu-core/master/rolling )
+  curl -sLo "${_tmp}"/checksum.txt http://ubuntu-cd.mirror.iweb.ca/"$_name"/SHA256SUMS
+  _new_version=$( awk -F'-' '{print $2; exit}' "${_tmp}"/checksum.txt )
+  _new_checksum=$( awk '/desktop/ {print $1; exit}' "${_tmp}"/checksum.txt )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_checksum" = "$_old_checksum" ]; then
+      _echo "  Files up to date - Ubuntu $_name $_new_version"
+    else
+      sed -i "/set ubuntu_release / s/[^ ]* *$/$_new_version/" "${_pxe}"/boot.ipxe
+      sed -i "/set ubuntu_name / s/[^ ]* *$/$_name/" "${_pxe}"/boot.ipxe
+      _filename=$( awk -F'*' '/desktop/ {print $2; exit}' "${_tmp}"/checksum.txt )
+      _echo "    Downloading files - Ubuntu $_name $_new_version"
+      curl -sLo "${_tmp}"/ubuntuworkstation.iso http://ubuntu-cd.mirror.iweb.ca/"$_name/$_filename"
+      7z e "${_tmp}/ubuntuworkstation.iso" -o"${_tmp}/" 'casper/initrd' 'casper/vmlinuz' > /dev/null
+      chmod 644 "${_tmp}"/*
+      chown 1001:20 "${_tmp}"/*
+      echo "${_new_checksum}" > "${_misc}"/ubuntu/checksumworkstation.txt
+      mv -f "${_tmp}"/initrd "${_misc}"/ubuntu/initrdworkstation
+      mv -f "${_tmp}"/vmlinuz "${_misc}"/ubuntu/vmlinuzworkstation
+      mv -f "${_tmp}"/ubuntuworkstation.iso "${_misc}"/ubuntu/
+    fi
   else
-    _echo "Updating files"
-    _version=$(awk -F'-' '{print $2; exit}' "${_tmp}"/checksum.txt)
-    sed -i "/set ubuntu_release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
-    sed -i "/set ubuntu_name / s/[^ ]* *$/$_name/" "${_pxe}"/boot.ipxe
-    _echo "  Downloading package"
-    curl -sLo "${_tmp}"/ubuntuworkstation.iso http://ubuntu-cd.mirror.iweb.ca/"$_name"/ubuntu-"$_version"-desktop-amd64.iso
-    _echo "  Extracting files"
-    7z e "${_tmp}/ubuntuworkstation.iso" -o"${_tmp}/" 'casper/initrd' 'casper/vmlinuz'
-    chmod 644 "${_tmp}"/*
-    chown 1001:20 "${_tmp}"/*
-    echo "${_new_checksum}" > checksumworkstation.txt
-    mv -f "${_tmp}"/initrd "${_misc}"/ubuntu/initrdworkstation
-    mv -f "${_tmp}"/vmlinuz "${_misc}"/ubuntu/vmlinuzworkstation
-    mv -f "${_tmp}"/ubuntuworkstation.iso "${_misc}"/ubuntu/
+    _echo "    Error - $_new_version"
   fi
   rm -f "${_tmp}"/*
 }
 #
 get_ubuntuserver () {
-  _echo "Getting Ubuntu Live CD"
-  _old_checksum=$(cat "${_misc}"/ubuntu/checksumserver.txt)
-  _name=$(curl -sl https://raw.githubusercontent.com/tianon/docker-brew-ubuntu-core/master/rolling)
-  curl -sLo "${_tmp}"/checksum.txt http://ubuntu-cd.mirror.iweb.ca/"$_name"/MD5SUMS
-  _new_checksum=$(awk '/live-server/ {print $1; exit}' "${_tmp}"/checksum.txt)
-  if [ "$_new_checksum" = "$_old_checksum" ]; then
-    _echo "  Files up to date."
+  _echo "Getting Ubuntu Server Live CD"
+  _old_checksum=$( cat "${_misc}"/ubuntu/checksumserver.txt 2>/dev/null )
+  _name=$( curl -sl https://raw.githubusercontent.com/tianon/docker-brew-ubuntu-core/master/rolling )
+  curl -sLo "${_tmp}"/checksum.txt http://ubuntu-cd.mirror.iweb.ca/"$_name"/SHA256SUMS
+  _new_version=$( awk -F'-' '{print $2; exit}' "${_tmp}"/checksum.txt )
+  _new_checksum=$( awk '/live-server/ {print $1; exit}' "${_tmp}"/checksum.txt )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_checksum" = "$_old_checksum" ]; then
+      _echo "  Files up to date - Ubuntu Server $_new_version"
+    else
+      sed -i "/set ubuntu_release / s/[^ ]* *$/$_new_version/" "${_pxe}"/boot.ipxe
+      sed -i "/set ubuntu_name / s/[^ ]* *$/$_name/" "${_pxe}"/boot.ipxe
+      _filename=$( awk -F'*' '/live-server/ {print $2; exit}' "${_tmp}"/checksum.txt )
+      _echo "    Downloading files - Ubuntu Server $_new_version"
+      curl -sLo "${_tmp}"/ubuntuserver.iso http://ubuntu-cd.mirror.iweb.ca/"$_name/$_filename"
+      7z e "${_tmp}/ubuntuserver.iso" -o"${_tmp}/" 'casper/initrd' 'casper/vmlinuz' > /dev/null
+      chmod 644 "${_tmp}"/*
+      chown 1001:20 "${_tmp}"/*
+      echo "${_new_checksum}" > "${_misc}"/ubuntu/checksumserver.txt
+      mv -f "${_tmp}"/initrd "${_misc}"/ubuntu/initrdserver
+      mv -f "${_tmp}"/vmlinuz "${_misc}"/ubuntu/vmlinuzserver
+      mv -f "${_tmp}"/ubuntuserver.iso "${_misc}"/ubuntu/
+    fi
   else
-    _echo "Updating files"
-    _version=$(awk -F'-' '{print $2; exit}' "${_tmp}"/checksum.txt)
-    sed -i "/set ubuntu_release / s/[^ ]* *$/$_version/" "${_pxe}"/boot.ipxe
-    sed -i "/set ubuntu_name / s/[^ ]* *$/$_name/" "${_pxe}"/boot.ipxe
-    _echo "  Downloading package"
-    curl -sLo "${_tmp}"/ubuntuserver.iso http://ubuntu-cd.mirror.iweb.ca/"$_name"/ubuntu-"$_version"-live-server-amd64.iso
-    _echo "  Extracting files"
-    7z e "${_tmp}/ubuntuserver.iso" -o"${_tmp}/" 'casper/initrd' 'casper/vmlinuz'
-    chmod 644 "${_tmp}"/*
-    chown 1001:20 "${_tmp}"/*
-    echo "${_new_checksum}" > checksumserver.txt
-    mv -f "${_tmp}"/initrd "${_misc}"/ubuntu/initrdserver
-    mv -f "${_tmp}"/vmlinuz "${_misc}"/ubuntu/vmlinuzserver
-    mv -f "${_tmp}"/ubuntuserver.iso "${_misc}"/ubuntu/
+    _echo "    Error - $_new_version"
+  fi
+  rm -f "${_tmp}"/*
+}
+#
+get_windowsupdate () {
+  _echo "Getting Windows 10 cumulative update"
+  _old_version=$( cat "${_win}"/wu/version.txt 2>/dev/null )
+  _windowsLatest=$( curl -sL https://winreleaseinfoprod.blob.core.windows.net/winreleaseinfoprod/en-US.html | awk -F'[<>]' '/<td>/ {getline; getline; getline; print $3; exit}' )
+  _new_version=$( curl -sL https://support.microsoft.com/app/content/api/content/feeds/sap/en-us/6ae59d69-36fc-8e4d-23dd-631d98bf74a9/atom | awk -v Lat="${_windowsLatest}" -F'[—(]' '$0 ~ Lat {print $4}' )
+  _new_version_number="${_new_version:2}"
+  if [ -z "${_new_version_number##[0-9]*}" ]; then
+    if [ "$_new_version" = "$_old_version" ]; then
+      _echo "  Files up to date - $_new_version"
+    else
+      if ! [ -z $_new_version ]; then
+        rm -f "${_win}"/wu/*
+      fi
+      _echo "    Downloading files - $_new_version"
+      _windowsUpdateID=$( curl -sL https://www.catalog.update.microsoft.com/Search.aspx?q=Cumulative%20Windows%2010%20x64%20"$_new_version" | awk -F'"' '/Button/ && /Download/ {print $2; exit}' )
+      # shellcheck disable=SC2086
+      _windowsUpdateURL=$( curl -sLd 'updateIDs=[{"size":0,"uidInfo":"'$_windowsUpdateID'","updateID":"'$_windowsUpdateID'"}]' -X POST -L http://www.catalog.update.microsoft.com/DownloadDialog.aspx | awk -F"'" '/url =/ {print $2}' )
+      curl -sLo "${_tmp}"/wu.msu "${_windowsUpdateURL}"
+      chown -R 1025:100 "${_tmp}"/*
+      find "${_tmp}" -name "*.msu" -exec chmod 755 {} +
+      find "${_tmp}" -type d -exec chmod 777 {} +
+      echo "${_new_version}" > "${_tmp}"/version.txt
+      mv -f "${_tmp}"/* "${_win}"/wu
+    fi
+  else
+    _echo "    Error - $_new_version"
+  fi
+  rm -f "${_tmp}"/*
+}
+#
+get_amdvideo () {
+  _echo "Getting AMD Adrenalin Video Drivers"
+  _old_version=$( cat "${_win}"/drivers/amd/version.txt 2>/dev/null )
+  _url=$( curl -s -H "User-Agent: foobar/2000" -e https://www.amd.com/en/support https://www.amd.com/en/support/graphics/amd-radeon-6000-series/amd-radeon-6800-series/amd-radeon-rx-6800 | awk '/radeon-software-adrenalin/ { sub("href=","",$2); print $2; exit }' | tr -d \" )
+  _new_version=$( echo "{$_url}" | awk -F '-' '{print $5}' )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_version" = "$_old_version" ]; then
+      _echo "  Files up to date - $_new_version"
+    else
+      _echo "    Downloading files - $_new_version"
+      curl -sLo "${_tmp}"/amdaadrenalin.exe -H "User-Agent: foobar/2000" -e https://www.amd.com/en/support "${_url}"
+      7z x "${_tmp}/amdaadrenalin.exe" -o"${_tmp}/video" > /dev/null
+      chown -R 1025:100 "${_tmp}"/*
+      chmod -R 777 "${_tmp}"/video
+      echo "${_new_version}" > "${_tmp}"/version.txt
+      rm -rf "${_win}"/drivers/amd/video
+      mv -f "${_tmp}"/* "${_win}"/drivers/amd
+    fi
+  else
+    _echo "    Error - $_new_version"
+  fi
+  rm -f "${_tmp}"/*
+}
+#
+get_nvidiavideo () {
+  _echo "Getting Nvidia Video Drivers"
+  _old_version=$( cat "${_win}"/drivers/nvidia/version.txt 2>/dev/null )
+  _url=$( curl -s "https://www.geforce.com/proxy?proxy_url=http%3A%2F%2Fgfwsl.geforce.com%2Fservices_toolkit%2Fservices%2Fcom%2Fnvidia%2Fservices%2FAjaxDriverService.php%3Ffunc%3DDriverManualLookup%26psid%3D120%26osID%3D57%26languageCode%3D1033%26beta%3D0%26isWHQL%3D1%26dltype%3D-1%26sort1%3D0%26numberOfResults%3D10" | jq -r '.IDS[0].downloadInfo.DownloadURL' )
+  _new_version=$( echo "{$_url}" | awk -F"/" '{print $5}')
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_version" = "$_old_version" ]; then
+      _echo "  Files up to date - $_new_version"
+    else
+      _echo "    Downloading files - $_new_version"
+      curl -sLo "${_tmp}"/nvidia.exe "${_url}"
+      7z x "${_tmp}/nvidia.exe" -o"${_tmp}/video" > /dev/null
+      chown -R 1025:100 "${_tmp}"/*
+      chmod -R 777 "${_tmp}"/video
+      echo "${_new_version}" > "${_tmp}"/version.txt
+      rm -rf "${_win}"/drivers/nvidia/video
+      # mv -f "${_tmp}"/* "${_win}"/drivers/nvidia
+      mv -f "${_tmp}"/nvidia.exe "${_win}"/drivers/nvidia
+      mv -f "${_tmp}"/version.txt "${_win}"/drivers/nvidia
+      mkdir -p "${_win}"/drivers/nvidia/video/GFExperience
+      chown -R 1025:100 "${_win}"/drivers/nvidia
+      mv -f "${_tmp}"/video/EULA.txt "${_win}"/drivers/nvidia/video
+      mv -f "${_tmp}"/video/ListDevices.txt "${_win}"/drivers/nvidia/video
+      mv -f "${_tmp}"/video/setup.cfg "${_win}"/drivers/nvidia/video
+      mv -f "${_tmp}"/video/setup.exe "${_win}"/drivers/nvidia/video
+      mv -f "${_tmp}"/video/Display.Driver "${_win}"/drivers/nvidia/video
+      mv -f "${_tmp}"/video/Display.Optimus "${_win}"/drivers/nvidia/video
+      mv -f "${_tmp}"/video/HDAudio "${_win}"/drivers/nvidia/video
+      mv -f "${_tmp}"/video/NVI2 "${_win}"/drivers/nvidia/video
+      mv -f "${_tmp}"/video/PhysX "${_win}"/drivers/nvidia/video
+      mv -f "${_tmp}"/video/PPC "${_win}"/drivers/nvidia/video
+      # Must include these legal files to satisfy the installer
+      mv -f "${_tmp}"/video/GFExperience/PrivacyPolicy "${_win}"/drivers/nvidia/video/GFExperience
+      mv -f "${_tmp}"/video/GFExperience/EULA.html "${_win}"/drivers/nvidia/video/GFExperience
+      mv -f "${_tmp}"/video/GFExperience/FunctionalConsent_* "${_win}"/drivers/nvidia/video/GFExperience
+    fi
+  else
+    _echo "    Error - $_new_version"
+  fi
+  rm -rf "${_tmp}"/*
+}
+#
+get_intelvideo () {
+  _echo "Getting Intel Video Drivers"
+  _old_version=$( cat "${_win}"/drivers/intel/version.txt 2>/dev/null )
+  _urlIntel=$( curl -sL https://downloadcenter.intel.com/product/80939/Graphics | awk -F '"' '/Windows-10-DCH-Drivers/ { print "https://downloadcenter.intel.com/"$2; exit }' )
+  _url=$( curl -sL "$_urlIntel" | awk -F '"' '/.zip/ {print $4; exit}' )
+  _new_version=$( echo "{$_url}" | awk -F '[_.]' '{print $5 "." $6}' )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_version" = "$_old_version" ]; then
+      _echo "  Files up to date - $_new_version"
+    else
+      _echo "    Downloading files - $_new_version"
+      curl -sLo "${_tmp}"/igfx.zip "${_url}"
+      7z x "${_tmp}/igfx.zip" -o"${_tmp}/video" > /dev/null
+      chown -R 1025:100 "${_tmp}"/*
+      chmod -R 777 "${_tmp}"/video
+      echo "${_new_version}" > "${_tmp}"/version.txt
+      rm -rf "${_win}"/drivers/intel/video
+      mv -f "${_tmp}"/* "${_win}"/drivers/intel
+    fi
+  else
+    _echo "    Error - $_new_version"
+  fi
+  rm -f "${_tmp}"/*
+}
+#
+get_amdam4chipset () {
+  _echo "Getting AMD AM4 Chipset Drivers"
+  _old_version=$( cat "${_win}"/apps/amd/am4_chipset/version.txt 2>/dev/null )
+  _url=$( curl -s -H "User-Agent: foobar/2000" -e https://www.amd.com/en/support https://www.amd.com/en/support/chipsets/amd-socket-am4/x570 | awk '/amd_chipset_software/ { sub("href=","",$2); print $2; exit }' | tr -d \" )
+  _new_version=$( echo "{$_url}" | awk -F '[_exe]' '{print $8}' )
+  _new_version=${_new_version%?}
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_version" = "$_old_version" ]; then
+      _echo "  Files up to date - $_new_version"
+    else
+      _echo "    Downloading files - $_new_version"
+      curl -sLo "${_tmp}"/am4_chipset.exe -H "User-Agent: foobar/2000" -e https://www.amd.com/en/support "${_url}"
+      chown -R 1025:100 "${_tmp}"/*
+      find "${_tmp}" -name "*.exe" -exec chmod 755 {} +
+      echo "${_new_version}" > "${_tmp}"/version.txt
+      mv -f "${_tmp}"/* "${_win}"/apps/amd/am4_chipset
+    fi
+  else
+    _echo "    Error - $_new_version"
+  fi
+  rm -f "${_tmp}"/*
+}
+#
+get_amdryzenmaster () {
+  _echo "Getting AMD Ryzen Master"
+  _old_version=$( cat "${_win}"/apps/amd/Ryzen_Master/version.txt 2>/dev/null )
+  _url=$( curl -s -H "User-Agent: foobar/2000" -e https://www.amd.com/en/support https://www.amd.com/en/support/cpu/amd-ryzen-processors/amd-ryzen-9-desktop-processors/amd-ryzen-9-3950x | awk '/AMD-Ryzen-Master/ { sub("href=","",$2); print $2; exit }' | tr -d \" )
+  _new_version=$( curl -s -H "User-Agent: foobar/2000" -e https://www.amd.com/en/support https://www.amd.com/en/support/cpu/amd-ryzen-processors/amd-ryzen-9-desktop-processors/amd-ryzen-9-3950x | awk -F '[()]' '/rn-ryzen-master/ { sub("href=","",$2); print $2}' )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_version" = "$_old_version" ]; then
+      _echo "  Files up to date - $_new_version"
+    else
+      _echo "    Downloading files - $_new_version"
+      curl -sLo "${_tmp}"/AMD-Ryzen-Master.exe -H "User-Agent: foobar/2000" -e https://www.amd.com/en/support "${_url}"
+      chown -R 1025:100 "${_tmp}"/*
+      find "${_tmp}" -name "*.exe" -exec chmod 755 {} +
+      echo "${_new_version}" > "${_tmp}"/version.txt
+      mv -f "${_tmp}"/* "${_win}"/apps/amd/Ryzen_Master
+    fi
+  else
+    _echo "    Error - $_new_version"
+  fi
+  rm -f "${_tmp}"/*
+}
+#
+get_intelxtu () {
+  _echo "Getting Intel XTU"
+  _old_version=$( cat "${_win}"/apps/intel/xtu/version.txt 2>/dev/null )
+  _urlIntel=$( curl -sL https://downloadcenter.intel.com/product/81605/Processor-Utilities-and-Programs | awk -F '"' '/Intel® XTU/ { print "https://downloadcenter.intel.com/"$2; exit }' )
+  _url=$( curl -sL "$_urlIntel" | awk -F '"' '/.exe/ {print $8; exit}' )
+  _new_version=$( curl -sL https://downloadcenter.intel.com/product/81605/Processor-Utilities-and-Programs | awk -F "[()]" '/Intel® XTU/ {a=$4} END { print a }' )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_version" = "$_old_version" ]; then
+      _echo "  Files up to date - $_new_version"
+    else
+      _echo "    Downloading files - $_new_version"
+      curl -sLo "${_tmp}"/XTUSetup.exe "${_url}"
+      chown -R 1025:100 "${_tmp}"/*
+      find "${_tmp}" -name "*.exe" -exec chmod 755 {} +
+      echo "${_new_version}" > "${_tmp}"/version.txt
+      mv -f "${_tmp}"/* "${_win}"/apps/intel/xtu
+    fi
+  else
+    _echo "    Error - $_new_version"
+  fi
+  rm -f "${_tmp}"/*
+}
+#
+get_intelchipset () {
+  _echo "Getting Intel Chipset Drivers"
+  _old_version=$( cat "${_win}"/apps/intel/intel_chipset/version.txt 2>/dev/null )
+  _urlIntel=$( curl -sL https://downloadcenter.intel.com/product/1145/Intel-Chipset-Software-Installation-Utility | awk -F '"' '/Chipset INF Utility/ { print "https://downloadcenter.intel.com/"$2; exit }' )
+  _url=$( curl -sL "$_urlIntel" | awk -F '"' '/direct-path=/ { print $8; exit }' )
+  # _new_version=$( echo "{$_url}" | awk -F '[-.]' '{ print $6 "." $7 "." $8 "." $9 }' )
+  _new_version=$( echo "{$_url}" | sed -e 's/.*chipset-\(.*\)-public.*/\1/' )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_version" = "$_old_version" ]; then
+      _echo "  Files up to date - $_new_version"
+    else
+      _echo "    Downloading files - $_new_version"
+      curl -sLo "${_tmp}"/intel_chipset.zip "${_url}"
+      7z -y x "${_tmp}"/intel_chipset.zip -o"${_tmp}"/drivers > /dev/null
+      chown -R 1025:100 "${_tmp}"/*
+      chmod -R 777 "${_tmp}"/drivers
+      echo "${_new_version}" > "${_tmp}"/version.txt
+      rm -rf "${_win}"/apps/intel/intel_chipset/drivers
+      mv -f "${_tmp}"/* "${_win}"/apps/intel/intel_chipset
+    fi
+  else
+    _echo "    Error - $_new_version"
+  fi
+  rm -f "${_tmp}"/*
+}
+#
+get_vmwaretools () {
+  _echo "Getting VMware Tools"
+  _old_version=$( cat "${_win}"/apps/vmware/vmwaretools/version.txt 2>/dev/null )
+  curl -sLo "${_tmp}"/version.txt https://packages.vmware.com/tools/releases/latest/windows/x64
+  _new_version=$( awk -F '["-]' '/VMware-tools/ { print $8 }' "${_tmp}"/version.txt )
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_version" = "$_old_version" ]; then
+      _echo "  Files up to date - $_new_version"
+    else
+      _echo "    Downloading files - $_new_version"
+      _url=$( awk -F '"' '/VMware-tools/ { print "https://packages.vmware.com/tools/releases/latest/windows/"$6 }' "${_tmp}"/version.txt )
+      curl -sLo "${_tmp}"/vmwaretools.exe "${_url}"
+      chmod 755 "${_tmp}"/*.exe
+      chown 1025:100 "${_tmp}"/*
+      echo "${_new_version}" > "${_tmp}"/version.txt
+      mv -f "${_tmp}"/* "${_win}"/apps/vmware/vmwaretools
+    fi
+  else
+    _echo "    Error - $_new_version"
+  fi
+  rm -f "${_tmp}"/*
+}
+#
+get_bootcamp () {
+  # https://apple.stackexchange.com/questions/376915/does-apple-offer-a-page-that-lists-all-versions-of-published-boot-camp-drivers/376921#376921
+  _echo "Getting Apple Bootcamp"
+  _old_version=$( cat "${_win}"/drivers/osx/version.txt 2>/dev/null )
+  _catalogData=$( curl -sL "https://swscan.apple.com/content/catalogs/others/index-10.15-10.14-10.13-10.12-10.11-10.10-10.9-mountainlion-lion-snowleopard-leopard.merged-1.sucatalog" )
+  _device="MacBookPro15,2"
+  _matches=$(grep -e "BootCampESD.pkg" -e ".English.dist" <<<"$_catalogData")
+  _dists=()
+  _pkgUrls=()
+
+  while read "_pkgUrl"; do
+      if [[ $_pkgUrl == *BootCampESD.pkg* ]]; then
+          read "_distUrl"
+          _distUrl="${_distUrl#*<string>}"
+          _distUrl="${_distUrl%</string>*}"
+          if [[ ! $_distUrl == *"English.dist"* ]]; then
+              echo "Error: URL '$_distUrl' did not contain the string 'English.dist'" >&2
+              continue # exit "1"
+          fi
+          _dist="${_distUrl##*/}"
+          _dists+=("$_dist")
+          _pkgUrl="${_pkgUrl#*<string>}"
+          _pkgUrl="${_pkgUrl%</string>*}"
+          _pkgUrls+=("$_pkgUrl")
+          if [[ ! -e "$_dist" ]]; then
+              curl -o /tmp/"$_dist" "$_distUrl" 2>/dev/null
+          fi
+      fi
+  done <<< "$_matches"
+
+  for ((i=0; i<${#_dists[@]}; ++i)); do
+      _dist="${_dists[i]}"
+      if grep "'$_device'" /tmp/"$_dist" >/dev/null; then
+          _bootcampurl="${_pkgUrls[i]}"
+          _new_version=$( awk -F'"' '/installKBytes=/ {print $6}' /tmp/"$_dist" )
+      fi
+      rm /tmp/"$_dist"
+  done
+
+  if [ -z "${_new_version##[0-9]*}" ]; then
+    if [ "$_new_version" = "$_old_version" ]; then
+      _echo "  Files up to date - $_new_version"
+    else
+      _echo "    Downloading files - $_new_version"
+      echo "${_new_version}" > "${_tmp}"/version.txt
+      curl -slo "${_tmp}"/bootcamp.pkg "${_bootcampurl}"
+      7z -y e "${_tmp}"/bootcamp.pkg -o"${_tmp}" > /dev/null
+      7z -y e "${_tmp}"/Payload~ -o"${_tmp}" './Library/Application Support/BootCamp/WindowsSupport.dmg' > /dev/null
+      7z -y x "${_tmp}"/WindowsSupport.dmg -o"${_tmp}"/drivers > /dev/null
+      chmod 777 "${_tmp}"/drivers
+      chown -R 1001:1001 "${_tmp}"/drivers
+      rm -rf "${_win}"/osx/drivers
+      mv -f "${_tmp}"/version.txt "${_win}"/drivers/osx
+      mv -f "${_tmp}"/WindowsSupport.dmg "${_win}"/drivers/osx
+      mv -f "${_tmp}"/drivers "${_win}"/drivers/osx/
+    fi
+  else
+    _echo "    Error - $_new_version"
   fi
   rm -f "${_tmp}"/*
 }
 #
 main () {
+  _logFile="/tmp/update.log"
   _pxe=/opt/filer/os/pxe
   _tmp=/opt/filer/os/pxe/tmp
   _misc=/opt/filer/os/pxe/misc
-  
-  if [ -e /.dockerenv ] && ! pidof cron ; then
-    echo "0 5,10,16 * * * ${_pxe}/update" | crontab -
-    cron -f -L 15
+  _win=/opt/filer/os/win
+  _osx=/opt/filer/os/osx
+
+  if [ "${TERM}" = "dumb" ]; then
+    if [ -e /.dockerenv ] && ! pidof cron ; then
+      date
+      echo "0 5 * * * ${_pxe}/update" | crontab -
+      cron -f -L 15
+    fi
+    _pid=$( pidof cron )
+    _console=/proc/"${_pid}"/fd/1
+  else
+    _console=$( tty )
   fi
 
-  _pid=$(pidof cron)
-  _console=/proc/"${_pid}"/fd/1
-
   _echo " "
-  date > "${_console}"
+  echo -n > "${_logFile}"
+  date | tee -a "${_console}" "${_logFile}" >/dev/null
   get_ipxe
   get_wimboot
   get_clonezilla
   get_gparted
+  get_arch
   get_debian
   get_fedora
   get_rawhide
@@ -330,7 +664,19 @@ main () {
   get_tumbleweed
   get_ubuntulive
   get_ubuntuserver
-
+  get_windowsupdate
+  get_amdvideo
+  get_intelvideo
+  get_nvidiavideo
+  get_amdam4chipset
+  get_amdryzenmaster
+  get_intelxtu
+  get_intelchipset
+  get_vmwaretools
+  get_bootcamp
+  date | tee -a "${_console}" "${_logFile}" >/dev/null
+  echo -e "Subject: From UPDATE\n\n\n$(cat ${_logFile})" | msmtp --host=filer --from=update@home.mustakim.com alim@forwardcomputers.com
+  rm -f "${_logFile}"
 }
 #
 main "$@"

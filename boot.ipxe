@@ -6,12 +6,11 @@
 chain secrets || goto error
 
 # Distribution release version
-set 
-set 
-set 32
-set 15.2
-set 
-set ubuntu_name 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server 500: Internal Server focal
+set debian_name buster
+set debian_release 10.7.0
+set fedora_release 33
+set opensuse_release 15.2
+set ubuntu_name groovy
 set windows_release 10
 
 # Mirrors
@@ -19,7 +18,8 @@ set arch_mirror mirror.csclub.uwaterloo.ca/archlinux
 set debian_mirror debian.mirror.iweb.ca
 set debian_live debian.mirror.iweb.ca
 set fedora_mirror fedora.mirror.iweb.ca
-set opensuse_mirror mirror.csclub.uwaterloo.ca
+#set fedora_mirror mirror.csclub.uwaterloo.ca/fedora
+set opensuse_mirror mirror.csclub.uwaterloo.ca/opensuse
 set ubuntu_mirror ubuntu.mirror.iweb.ca
 
 # Some menu defaults
@@ -56,8 +56,8 @@ set bg_whi ${esc:string}[47m
 set cls ${esc:string}[2J
 set menu-timeout 30000
 set submenu-timeout ${menu-timeout}
-console --x 800 --y 600
-cpair --foreground 7 --background 0 0
+#console --x 800 --y 600
+#cpair --foreground 7 --background 0 0
 isset ${menu-default} || set menu-default exit
 
 # Figure out if client is 64-bit capable
@@ -73,16 +73,19 @@ iseq ${platform} efi && set archp efi || set archp bios
 menu iPXE ${version} - ${manufacturer} ${product} - ${archb}bit ${archp}
 item --key w win            ${bold}W${boldoff}indows ${windows_release} install
 item --key a winauto        Windows ${windows_release} ${bold}a${boldoff}uto install
+item --key l winlite        Windows ${windows_release} ${bold}l${boldoff}ite auto install
+item --key b barebones      Windows ${windows_release} ${bold}b${boldoff}arebones auto install
 item --key e winre          Windows ${windows_release} ${bold}e${boldoff}mergency recovery
 item
 item --key 1 arch           1. Arch linux
 item --key 2 fedoraai       2. Fedora ${fedora_release} auto install
-item --key 3 ubuntuai       3. Ubuntu ${ubuntu_release} auto install
-item 
+item --key 3 debianai       3. Debian ${debian_release} auto install
+#item 
 item --key g gparted        ${bold}G${boldoff}raphical Partition Manager
 item --key z clone          Clone${bold}z${boldoff}illa
 item --key k krd            ${bold}K${boldoff}aspersky Rescue Disk
-item 
+item --key y systemrescue   S${bold}y${boldoff}stem Rescue
+#item 
 item --gap --               ------------------------------ Advanced ---------------------------------
 item --key r refresh_menu   ${bold}R${boldoff}efresh menu
 item config                 Configure settings
@@ -141,6 +144,18 @@ kernel wimboot
 initrd --name winpeshl.ini ${swboot-url}/pxe/unattend/win/unattend_winpeshl.ini winpeshl.ini
 goto winboot
 
+:winlite
+imgfree
+kernel wimboot
+initrd --name winpeshl.ini ${swboot-url}/pxe/unattend/win/lite_winpeshl.ini winpeshl.ini
+goto winboot
+
+:barebones
+imgfree
+kernel wimboot
+initrd --name winpeshl.ini ${swboot-url}/pxe/unattend/win/barebones_winpeshl.ini winpeshl.ini
+goto winboot
+
 :winre
 imgfree
 kernel wimboot
@@ -167,10 +182,20 @@ boot     ${boot}/vmlinuz initrd=archiso.img \
 :fedoraai
 imgfree
 set url http://${fedora_mirror}/linux/releases/${fedora_release}/Everything/${arch_fedora}/os
-initrd  ${url}/images/pxeboot/initrd.img || goto failed
-boot    ${url}/images/pxeboot/vmlinuz initrd=initrd.img inst.repo=${url} \
+set upd http://${fedora_mirror}/linux/updates/${fedora_release}/Everything/${arch_fedora}
+initrd  ${swboot-url}/pxe/misc/fedora/net/initrd.img || goto failed
+boot    ${swboot-url}/pxe/misc/fedora/net/vmlinuz initrd=initrd.img \
         inst.repo=${url} inst.stage2=${url} inst.ks=${swboot-url}/pxe/unattend/lnx/fedora/ks.cfg \
-        ks_url=${swboot-url}/pxe/unattend/lnx/fedora || goto failed
+        ks_url=${swboot-url}/pxe/unattend/lnx/fedora upd_url=${upd} net.ifnames=0 audit=0 || goto failed
+
+:debianai
+imgfree
+set url http://${debian_mirror}/debian/dists/testing/main/installer-${arch_debian}/current/images/netboot/debian-installer/${arch_debian}
+initrd  ${swboot-url}/pxe/misc/debian/net/initrd.gz || goto failed
+boot    ${swboot-url}/pxe/misc/debian/net/linux initrd=initrd.gz \
+        mirror/http/directory=/debian mirror/http/hostname=${debian_mirror} \
+        url=${swboot-url}/pxe/unattend/lnx/debian/preseed.cfg \
+        priority=critical ipv6.disable=1 net.ifnames=0 audit=0 auto=true || goto failed
 
 :ubuntuai
 imgfree
@@ -190,8 +215,10 @@ chain   ${swboot-url}/pxe/Shell.efi || imgfree
 imgfree
 initrd  ${swboot-url}/pxe/misc/gparted/initrd.img || goto failed
 boot    ${swboot-url}/pxe/misc/gparted/vmlinuz initrd=initrd.img \
-        fetch=${swboot-url}/pxe/misc/gparted/filesystem.squashfs boot=live union=overlay username=user ip=${dns} vga=788 \
-        gl_batch config components noeject noprompt noswap locales=en_US.UTF-8 keyboard-layouts=en || goto failed
+        fetch=${swboot-url}/pxe/misc/gparted/filesystem.squashfs boot=live union=overlay username=user vga=788 \
+        config components noeject noswap locales=en_US.UTF-8 keyboard-layouts=en || goto failed
+#        fetch=${swboot-url}/pxe/misc/gparted/filesystem.squashfs boot=live union=overlay username=user ip=${dns} vga=788 \
+#        gl_batch config components noeject noprompt noswap locales=en_US.UTF-8 keyboard-layouts=en || goto failed
 
 :clone
 imgfree
@@ -208,10 +235,17 @@ initrd  ${swboot-url}/pxe/misc/krd/boot/grub/initrd.xz || goto failed
 boot    ${swboot-url}/pxe/misc/krd/boot/grub/k-x86_64 initrd=initrd.xz \
         nfsboot=${nfs-url}/pxe/misc/krd lang=en dostartx || goto failed
 
+:systemrescue
+imgfree
+initrd  ${swboot-url}/pxe/misc/systemrescue/sysresccd/boot/${arch_fedora}/sysresccd.img || goto failed
+boot    ${swboot-url}/pxe/misc/systemrescue/sysresccd/boot/${arch_fedora}/vmlinuz initrd=sysresccd.img \
+        archiso_http_srv=${swboot-url}/pxe/misc/systemrescue/ archisobasedir=sysresccd \
+        checksum=y ip=dhcp net.ifnames=0 console=tty0 console=tty1 || goto failed
+
 #
 # Other menu
 :menu_other
-colour --basic 6 --rgb 0x40e0d0 6
+#colour --basic 6 --rgb 0x40e0d0 6
 menu Other OS installation
 item --key 1 debian         ${spaces15}${spaces15}${spaces5}${bg_gre}${fg_bla}Debian ${debian_release} ${debian_name}${boldoff}
 item --key 2 debianlive     ${spaces15}1. Install${spaces15}${spaces15}2. live
@@ -229,9 +263,7 @@ item --key 9 tumbleweed     ${spaces15}${spaces15}${spaces5}OpenSuse Install
 item --key 0 opensuse       ${spaces15}9. Tumbleweed${spaces15}${spaces5}${spaces5}${spaces2}0. Leap ${opensuse_release}
 item --gap
 item --key a alpine         A. Alpine linux
-item --gap
 item --key b alpine         B. Arch linux
-item --gap
 item --key z test           Z. Test
 item --gap
 item --key 0x08 --default back        <== Back to top menu...
@@ -247,7 +279,8 @@ boot    ${url}/releases/x86_64/netboot/vmlinuz-lts initrd=initramfs-lts \
 
 :debian
 imgfree
-set url http://${debian_mirror}/debian/dists/${debian_release}/main/installer-${arch_debian}/current/images/netboot/debian-installer/${arch_debian}
+#set url http://${debian_mirror}/debian/dists/Debian${debian_release}/main/installer-${arch_debian}/current/images/netboot/debian-installer/${arch_debian}
+set url http://${debian_mirror}/debian/dists/bullseye/main/installer-${arch_debian}/current/images/netboot/debian-installer/${arch_debian}
 initrd  ${url}/initrd.gz || goto failed
 boot    ${url}/linux initrd=initrd.gz \
         mirror/http/directory=/debian mirror/http/hostname=${debian_mirror} mirror/country=manual || goto failed
@@ -287,7 +320,7 @@ boot    ${swboot-url}/pxe/misc/rawhide/vmlinuz initrd=initrd.img \
 
 :opensuse
 imgfree
-set url http://${opensuse_mirror}/opensuse/distribution/leap/${opensuse_release}/repo/oss
+set url http://${opensuse_mirror}/distribution/leap/${opensuse_release}/repo/oss
 initrd  ${url}/boot/${arch_fedora}/loader/initrd || goto failed
 boot    ${url}/boot/${arch_fedora}/loader/linux initrd=initrd install=${url} || goto failed
 

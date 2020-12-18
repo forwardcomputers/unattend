@@ -1,6 +1,0 @@
-#!/bin/bash
-#
-curl -o krd.iso https://rescuedisk.s.kaspersky-labs.com/updatable/2018/krd.iso
-rm -r boot data
-7z x krd.iso 'boot/grub/initrd.xz' 'boot/grub/k-x86_64' 'data'
-rm krd.iso
