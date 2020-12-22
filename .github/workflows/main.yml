@@ -6,6 +6,8 @@ on:
     # Times are in UTC, this job is run daily @ 14HRS = 9AM EST, 20HRS = 3PM EST
     - cron: "0 14,20 * * *"
 
+  workflow_dispatch:
+
 jobs:
   shellcheck:
     if: "!contains(github.event.head_commit.message, 'skip ci')"

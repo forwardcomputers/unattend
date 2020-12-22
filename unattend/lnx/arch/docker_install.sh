@@ -48,7 +48,7 @@ pacstrap /mnt \
  cronie \
  cockpit \
  cockpit-dashboard \
- cockpit-docker \
+ cockpit-machines \
  cockpit-pcp \
  efibootmgr \
  git \
@@ -66,7 +66,8 @@ pacstrap /mnt \
  pacman-contrib \
  sudo \
  udisks2 \
- vim
+ vim \
+ virt-install
 genfstab -pU /mnt >> /mnt/etc/fstab
 
 # Arch tweaks in chroot system
@@ -194,7 +195,7 @@ arch-chroot /mnt <<-_EOF_
 	cat > /etc/systemd/system/docker.service.d/override.conf <<-_EOF
 	[Service]
 	ExecStart=
-	ExecStart=/usr/bin/dockerd --containerd=/run/containerd/containerd.sock
+	ExecStart=/usr/bin/dockerd
 	_EOF
 
 	echo 'Config cockpit'
