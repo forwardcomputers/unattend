@@ -7,9 +7,10 @@ chain secrets || goto error
 
 # Distribution release version
 set debian_name buster
-set debian_release 10.7.0
+set debian_release 10.8.0
 set fedora_release 33
-set opensuse_release 15.2
+set opensuse_release 15.3
+set ubuntu_release 20.10
 set ubuntu_name groovy
 set windows_release 10
 
@@ -173,8 +174,9 @@ imgfree
 set url  http://${arch_mirror}/iso/latest
 set boot ${url}/arch/boot/${arch_fedora}
 set ks   ${swboot-url}/pxe/unattend/lnx/arch/docker_install.sh
-initrd   ${boot}/archiso.img || goto failed
-boot     ${boot}/vmlinuz initrd=archiso.img \
+set ks   ${swboot-url}/pxe/unattend/lnx/arch/install.sh
+initrd   ${boot}/initramfs-linux.img || goto failed
+boot     ${boot}/vmlinuz-linux initrd=initramfs-linux.img \
          archiso_http_srv=${url}/ archisobasedir=arch \
          script=${ks} ip=dhcp console=tty0 console=tty1 \
          dist_mirror=http://${arch_mirror} || goto failed

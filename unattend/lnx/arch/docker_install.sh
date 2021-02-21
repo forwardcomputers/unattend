@@ -89,8 +89,9 @@ arch-chroot /mnt <<-_EOF_
 
 	echo 'Set hostname'
 	# Set the hostname
-	hostnamectl set-hostname ${_hostname}
-  echo "127.0.0.1 ${_hostname} ${_hostname}.${_dns_name}" >> /etc/hosts
+	hostnamectl set-hostname ${_docker_hostname}
+	echo ${_docker_hostname} > /etc/hostname
+  echo "127.0.0.1 ${_docker_hostname} ${_docker_hostname}.${_dns_name}" >> /etc/hosts
 
 	echo 'Set network'
 	# Network
@@ -101,7 +102,7 @@ arch-chroot /mnt <<-_EOF_
 		type=ethernet
 
 		[ipv4]
-		address1=${_ip_address}
+		address1=${_docker_ip_address}
 		dns=${_dns_address};
 		dns-search=${_dns_name};
 		gateway=${_gw_address}
@@ -217,6 +218,7 @@ arch-chroot /mnt <<-_EOF_
     cronie.service \
     cockpit.socket \
     docker.service \
+    libvirtd.service \
     NetworkManager.service \
     sshd.service
 	sed -i 's/^#AutoEnable=false/AutoEnable=true/' /etc/bluetooth/main.conf
