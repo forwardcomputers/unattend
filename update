@@ -69,8 +69,8 @@ get_clonezilla () {
     _filename=$( awk '/amd64.zip/ {print $2; exit}' "${_tmp}"/checksum.txt )
     curl -sLo "${_tmp}"/clonezilla.zip http://free.nchc.org.tw/clonezilla-live/stable/"$_filename"
     7z e "${_tmp}/clonezilla.zip" -o"${_tmp}/" 'live/filesystem.squashfs' 'live/initrd.img' 'live/vmlinuz'
-    chmod 644 "${_tmp}"/*
-    chown 1001:20 "${_tmp}"/*
+    chmod -R 644 "${_tmp}"/*
+    chown -R 1001:20 "${_tmp}"/*
     mv -f "${_tmp}"/{checksum.txt,filesystem.squashfs,initrd.img,vmlinuz} "${_misc}"/clonezilla/
   fi
   rm -f "${_tmp}"/*
@@ -85,8 +85,8 @@ get_gparted () {
     _filename=$( awk '/amd64.zip/ {print $2; exit}' "${_tmp}"/checksum.txt )
     curl -sLo "${_tmp}"/gparted.zip https://downloads.sourceforge.net/gparted/"$_filename"
     7z e "${_tmp}/gparted.zip" -o"${_tmp}/" 'live/filesystem.squashfs' 'live/initrd.img' 'live/vmlinuz'
-    chmod 644 "${_tmp}"/*
-    chown 1001:20 "${_tmp}"/*
+    chmod -R 644 "${_tmp}"/*
+    chown -R 1001:20 "${_tmp}"/*
     mv -f "${_tmp}"/{checksum.txt,filesystem.squashfs,initrd.img,vmlinuz} "${_misc}"/gparted/
   fi
   rm -f "${_tmp}"/*
@@ -107,8 +107,8 @@ get_arch () {
       pushd "${_archDirectory}" || exit
       tar -czf ../ArchWSL.tar.gz .
       popd || exit
-      chmod 644 "${_tmp}"/ArchWSL.tar.gz
-      chown 1001:20 "${_tmp}"/ArchWSL.tar.gz
+      chmod -R 644 "${_tmp}"/ArchWSL.tar.gz
+      chown -R 1001:20 "${_tmp}"/ArchWSL.tar.gz
       mv -f "${_tmp}"/{checksum.txt,ArchWSL.tar.gz} "${_misc}"/arch/
     fi
   else
@@ -133,8 +133,8 @@ get_debian () {
       curl -sLo "${_tmp}"/net/initrd.gz http://debian.mirror.iweb.ca/debian/dists/"$_name"/main/installer-amd64/current/images/netboot/debian-installer/amd64/initrd.gz
       curl -sLo "${_tmp}"/net/linux http://debian.mirror.iweb.ca/debian/dists/"$_name"/main/installer-amd64/current/images/netboot/debian-installer/amd64/linux
       curl -sLo "${_tmp}"/debian.iso http://debian.mirror.iweb.ca/debian-cd/"$_new_version"-live/amd64/iso-hybrid/"$_filename"
-      chmod 644 "${_tmp}"/*
-      chown 1001:20 "${_tmp}"/*
+      chmod -R 644 "${_tmp}"/*
+      chown -R 1001:20 "${_tmp}"/*
       rm -rf "${_misc}"/debian/net
       mv -f "${_tmp}"/* "${_misc}"/debian/
     fi
@@ -159,8 +159,8 @@ get_fedora () {
       curl -sLo "${_tmp}"/net/initrd.img http://fedora.mirror.iweb.com/linux/releases/"$_new_version"/Everything/x86_64/os/images/pxeboot/initrd.img
       curl -sLo "${_tmp}"/net/vmlinuz http://fedora.mirror.iweb.com/linux/releases/"$_new_version"/Everything/x86_64/os/images/pxeboot/vmlinuz
       curl -sLo "${_tmp}"/fedora.iso http://fedora.mirror.iweb.com/linux/releases/"$_new_version"/Workstation/x86_64/iso/"$_filename"
-      chmod 644 "${_tmp}"/*
-      chown 1001:20 "${_tmp}"/*
+      chmod -R 644 "${_tmp}"/*
+      chown -R 1001:20 "${_tmp}"/*
       rm -rf "${_misc}"/fedora/net
       mv -f "${_tmp}"/* "${_misc}"/fedora/
     fi
@@ -183,8 +183,8 @@ get_rawhide () {
       curl -sLo "${_tmp}"/net/initrd.img http://fedora.mirror.iweb.com/linux/development/rawhide/Everything/x86_64/os/images/pxeboot/initrd.img
       curl -sLo "${_tmp}"/net/vmlinuz http://fedora.mirror.iweb.com/linux/development/rawhide/Everything/x86_64/os/images/pxeboot/vmlinuz
       curl -sLo "${_tmp}"/rawhide.iso http://fedora.mirror.iweb.com/linux/development/rawhide/Workstation/x86_64/iso/"$_filename"
-      chmod 644 "${_tmp}"/*
-      chown 1001:20 "${_tmp}"/*
+      chmod -R 644 "${_tmp}"/*
+      chown -R 1001:20 "${_tmp}"/*
       rm -rf "${_misc}"/rawhide/net
       mv -f "${_tmp}"/* "${_misc}"/rawhide/
     fi
@@ -205,8 +205,8 @@ get_opensuse () {
       sed -i "/set opensuse_release / s/[^ ]* *$/$_new_version/" "${_pxe}"/boot.ipxe
       _filename=$( awk '{print $2}' "${_tmp}"/checksum.txt )
       curl -sLo "${_tmp}"/opensuse.iso https://mirror.csclub.uwaterloo.ca/opensuse/distribution/leap/"$_new_version"/live/"$_filename"
-      chmod 644 "${_tmp}"/*
-      chown 1001:20 "${_tmp}"/*
+      chmod -R 644 "${_tmp}"/*
+      chown -R 1001:20 "${_tmp}"/*
       mv -f "${_tmp}"/{checksum.txt,opensuse.iso} "${_misc}"/opensuse/
     fi
   else
@@ -224,8 +224,8 @@ get_tumbleweed () {
     if [ "$_new_checksum" != "$_old_checksum" ]; then
       _echo "Getting - OpenSuse Tumbleweed Live CD $_new_version"
       curl -sLo "${_tmp}"/tumbleweed.iso http://mirror.umd.edu/opensuse/tumbleweed/iso/openSUSE-Tumbleweed-KDE-Live-x86_64-Current.iso
-      chmod 644 "${_tmp}"/*
-      chown 1001:20 "${_tmp}"/*
+      chmod -R 644 "${_tmp}"/*
+      chown -R 1001:20 "${_tmp}"/*
       mv -f "${_tmp}"/{checksum.txt,tumbleweed.iso} "${_misc}"/tumbleweed/
     fi
   else
@@ -247,8 +247,8 @@ get_ubuntulive () {
       sed -i "/set ubuntu_name / s/[^ ]* *$/$_name/" "${_pxe}"/boot.ipxe
       _filename=$( awk -F'*' '/desktop/ {print $2; exit}' "${_tmp}"/checksum.txt )
       curl -sLo "${_tmp}"/ubuntuworkstation.iso https://mirror.csclub.uwaterloo.ca/ubuntu-releases/"$_name/$_filename"
-      chmod 644 "${_tmp}"/*
-      chown 1001:20 "${_tmp}"/*
+      chmod -R 644 "${_tmp}"/*
+      chown -R 1001:20 "${_tmp}"/*
       echo "${_new_checksum}" > "${_misc}"/ubuntu/checksumworkstation.txt
       mv -f "${_tmp}"/ubuntuworkstation.iso "${_misc}"/ubuntu/
     fi
@@ -271,8 +271,8 @@ get_ubuntuserver () {
       sed -i "/set ubuntu_name / s/[^ ]* *$/$_name/" "${_pxe}"/boot.ipxe
       _filename=$( awk -F'*' '/live-server/ {print $2; exit}' "${_tmp}"/checksum.txt )
       curl -sLo "${_tmp}"/ubuntuserver.iso https://mirror.csclub.uwaterloo.ca/ubuntu-releases/"$_name/$_filename"
-      chmod 644 "${_tmp}"/*
-      chown 1001:20 "${_tmp}"/*
+      chmod -R 644 "${_tmp}"/*
+      chown -R 1001:20 "${_tmp}"/*
       echo "${_new_checksum}" > "${_misc}"/ubuntu/checksumserver.txt
       mv -f "${_tmp}"/ubuntuserver.iso "${_misc}"/ubuntu/
     fi
@@ -482,8 +482,8 @@ get_vmwaretools () {
       _echo "Getting - VMware Tools $_new_version"
       _url=$( awk -F '"' '/VMware-tools/ { print "https://packages.vmware.com/tools/releases/latest/windows/"$6 }' "${_tmp}"/version.txt )
       curl -sLo "${_tmp}"/vmwaretools.exe "${_url}"
-      chmod 755 "${_tmp}"/*.exe
-      chown 1025:100 "${_tmp}"/*
+      chmod -R 755 "${_tmp}"/*.exe
+      chown -R 1025:100 "${_tmp}"/*
       echo "${_new_version}" > "${_tmp}"/version.txt
       mv -f "${_tmp}"/* "${_win}"/apps/vmware/vmwaretools
     fi
