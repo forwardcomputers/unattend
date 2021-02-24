@@ -122,7 +122,24 @@ arch-chroot /mnt <<-_EOF_
 	curl -so /root/.ssh/authorized_keys https://github.com/forwardcomputers.keys
 	chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys
 	cat > /root/.profile <<-_EOF
-		alias pkgup="pacman -Syyu --noconfirm && pacman -Scc --noconfirm"
+		#
+		alias ls='ls --color=auto'
+		alias dupdate="pacman -Syyu --noconfirm && echo && pacman -Scc --noconfirm && watchtower"
+		alias wupdate="checkupdates"
+		#
+		dcon () { docker exec -it "$1" sh; }
+		dlog () { docker container logs "$1"; }
+		docui () {
+		  if ! [ "$(docker container ls -aq -f status=running -f name=docui)" ]; then
+		    if [ "$(docker container inspect -f '{{.State.Status}}' docui)" == "exited" ]; then
+		      docker start docui
+		    else
+		      docker run --name docui -d -itv /var/run/docker.sock:/var/run/docker.sock skanehira/docui
+		    fi
+		  fi
+		  docker attach docui
+		}
+		watchtower () { docker-compose -f /opt/filer/os/docker-compose/watchtower/docker-compose.yml up; }
 	_EOF
 	curl -so /root/install.sh http://filer/os/docker-compose/portainer_install.sh
 	# Add check for updates in crontab
