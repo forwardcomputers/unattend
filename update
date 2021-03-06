@@ -434,7 +434,7 @@ get_intelxtu () {
   _old_version=$( cat "${_win}"/apps/intel/xtu/version.txt 2>/dev/null )
   _urlIntel=$( curl -sL https://downloadcenter.intel.com/product/81605/Processor-Utilities-and-Programs | awk -F '"' '/Intel® XTU/ { print "https://downloadcenter.intel.com/"$2; exit }' )
   _url=$( curl -sL "$_urlIntel" | awk -F '"' '/.exe/ {print $8; exit}' )
-  _new_version=$( curl -sL https://downloadcenter.intel.com/product/81605/Processor-Utilities-and-Programs | awk -F "[()]" '/Intel® XTU/ {a=$4} END { print a }' )
+  _new_version=$( curl -sL https://downloadcenter.intel.com/product/81605/Processor-Utilities-and-Programs | awk -F "[()]" '/Intel® XTU/ {a=$4} END { gsub("[[:alpha:]|[:space:]]","",a); print a }' )
   if [ -z "${_new_version##[0-9]*}" ]; then
     if [ "$_new_version" != "$_old_version" ]; then
       _echo "Getting - Intel XTU $_new_version"
