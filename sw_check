@@ -106,8 +106,10 @@ do_watchtower() {
   local _do_update="${1}"
   #
   if [ -n "${_do_update}" ]; then
-    printf "\nUpdating docker images\n"
-    docker-compose -f /opt/filer/os/docker-compose/watchtower/docker-compose.yml up
+    if [ ! -z $( docker images -q containrrr/watchtower ) ] ; then
+      printf "\nUpdating docker images\n"
+      docker-compose -f /opt/filer/os/docker-compose/watchtower/docker-compose.yml up
+    fi
   fi
 }
 #
@@ -115,7 +117,7 @@ do_macos() {
   local _do_update="${1}"
   #
   printf "\nChecking system - %s\n" "${_name}"
-  printf "\nThe following packages can be upgraded\n"
+  printf "\nUpdating homebrew packages\n"
   sudo -u ali -i bash -c 'brew update'
   #
   if [ -n "${_do_update}" ]; then
