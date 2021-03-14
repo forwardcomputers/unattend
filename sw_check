@@ -1,0 +1,147 @@
+#!/bin/bash
+set -e
+set -o pipefail
+#set -x
+[ "$UID" -eq 0 ] || exec sudo bash "$0" "$@"
+#
+do_adguard() {
+  if [ ! -e /opt/AdGuardHome/AdGuardHome ]; then return; fi
+  #
+  local _do_update="${1}"
+  local _ag_ip=$( awk '/^bind_host:/ {print $2}' /opt/AdGuardHome/AdGuardHome.yaml )
+  local _ag_port=$( awk '/^bind_port:/ {print $2}' /opt/AdGuardHome/AdGuardHome.yaml )
+  #
+  local _old_version=$(curl -s "${_ag_ip}":"${_ag_port}"/control/status -X GET | jq -r '.version')
+  local _new_version=$(curl -s "${_ag_ip}":"${_ag_port}"/control/version.json -X POST -d '{"recheck_now": true}' | jq -r '.new_version')
+  #
+  printf 'AdGuard Home\n'
+  printf '  Version is %s (Latest: %s)\n' "${_old_version}" "${_new_version}"
+  #
+  if [ -n "${_do_update}" ]; then
+    if [ "${_old_version}" != "${_new_version}" ]; then
+      printf " - updating\n"
+      curl -s "${_url}"/control/update -X POST
+    else
+      printf "\n"
+    fi
+  else
+    printf "\n"
+  fi
+}
+#
+do_pihole() {
+  if ! command -v pihole &>/dev/null; then return; fi
+  #
+  local _do_update="${1}"
+  #
+  printf 'Pi-hole\n'
+  pihole -v
+  #
+  if [ -n "${_do_update}" ]; then
+    printf "\nUpdating\n"
+    pihole -up
+  else
+    printf "\n"
+  fi
+}
+#
+do_unix() {
+  case "${_os}" in
+    'Linux')
+      _os_id=$(awk -F'=' '/^ID=/ {print $2}' /etc/os-release)
+      case "${_os_id}" in
+        'arch')     do_arch "$@" ;;
+        'debian')   do_debian "$@" ;;
+        'raspbian') do_debian "$@" ;;
+        'ubuntu')   do_debian "$@" ;;
+        *) ;;
+      esac ;;
+    'Darwin')
+      do_macos "$@" ;;
+  esac
+}
+#
+do_arch() {
+  local _do_update="${1}"
+  #
+  printf "\nChecking system - %s\n" "${_name}"
+  printf "\nThe following packages can be upgraded\n"
+  checkupdates || true
+  #
+  if [ -n "${_do_update}" ]; then
+    printf "\nUpdating\n"
+    pacman -Syyu --noconfirm
+    printf "\n"
+    pacman -Scc --noconfirm
+    printf "\n"
+  else
+    printf "\n"
+  fi
+}
+#
+do_debian() {
+  local _do_update="${1}"
+  #
+  printf "\nChecking system - %s\n\n" "${_name}"
+  apt-get update
+  printf "\nThe following packages can be upgraded\n"
+  apt list --upgradable
+  #
+  if [ -n "${_do_update}" ]; then
+    printf "\nUpdating\n"
+    apt-get full-upgrade -y
+    printf "\n"
+    apt-get autoremove --purge -y
+    printf "\n"
+    apt-get autoclean -y
+    printf "\n"
+  else
+    printf "\n"
+  fi
+}
+#
+do_watchtower() {
+  if ! command -v docker-compose &>/dev/null; then return; fi
+  #
+  local _do_update="${1}"
+  #
+  if [ -n "${_do_update}" ]; then
+    printf "\nUpdating docker images\n"
+    docker-compose -f /opt/filer/os/docker-compose/watchtower/docker-compose.yml up
+  fi
+}
+#
+do_macos() {
+  local _do_update="${1}"
+  #
+  printf "\nChecking system - %s\n" "${_name}"
+  printf "\nThe following packages can be upgraded\n"
+  sudo -u ali -i bash -c 'brew update'
+  #
+  if [ -n "${_do_update}" ]; then
+    printf "\nUpdating\n"
+    softwareupdate -i -a --agree-to-license
+    printf "\n"
+    sudo -u ali -i bash -c 'brew upgrade'
+    sudo -u ali -i bash -c 'brew upgrade --cask'
+  else
+    softwareupdate -l
+    printf "\n"
+    sudo -u ali -i bash -c 'brew outdated'
+  fi
+}
+#
+main() {
+  _update="$@"
+  _name=$(uname -n)
+  _os=$(uname -s)
+  #
+  do_unix "${_update}"
+  #
+  do_watchtower "${_update}"
+  do_adguard "${_update}"
+  do_pihole "${_update}"
+}
+#
+main "$@"
+#set +x
